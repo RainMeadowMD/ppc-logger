@@ -546,7 +546,7 @@ async function analyseAndSave(){
   const btn=document.getElementById('save_btn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Analysing…';
   const p=getPortfolios().find(x=>x.name===selectedName);
   const meta=getPortfolioMeta(selectedName);
-  const instrText=(meta.instructions&&meta.instructions.length)?'Campaign aliases:\n'+meta.instructions.map(i=>`- "${i.alias}" = "${i.full}"`).join('\n'):'';
+  var instrText=meta.instructionNotes?'Portfolio instructions:\n'+meta.instructionNotes:'';
   const stratText=meta.role?`Strategy: Role=${meta.role}, Target TACoS ${meta.tacosMin||'?'}–${meta.tacosMax||'?'}%. ${meta.notes||''}`:'' ;
   const prompt=`Amazon FBA PPC notes for portfolio "${p.name}" (ASIN: ${p.asin}).\n${stratText}\n${instrText}\n\nVoice note:\n"""\n${raw}\n"""\n\nExtract each distinct campaign change. Use alias names when available. Return ONLY valid JSON, no markdown:\n{"campaigns":[{"campaign":"alias or campaign type","what":"one sentence what changed","why":"stated or inferred reason, or not stated","verdict":"sound or risky or unclear","watch":["specific metric to check in 7 days","another specific signal"]}]}\n\nverdict: sound=clear data-driven reason, risky=no data or large change, unclear=vague.\nwatch: specific e.g. "check if ACOS dropped below 35%" not "monitor performance".`;
   try{
@@ -577,18 +577,24 @@ function saveStrategy(){
 }
 
 function renderInstructionsTab(){
-  const meta=getPortfolioMeta(selectedName),instrs=meta.instructions||[];
-  const rows=instrs.map((item,i)=>`<div class="instruction-row"><input type="text" id="alias_${i}" value="${item.alias||''}" placeholder="Short name (e.g. Campaign 1)" /><span class="arrow-sep">→</span><input type="text" id="full_${i}" value="${item.full||''}" placeholder="Full campaign name" /><button class="del-btn" onclick="deleteAlias(${i})">×</button></div>`).join('');
-  const display=instrs.length?`<div class="alias-display" style="margin-top:20px;">${instrs.map(i=>`<div class="alias-row"><span class="alias-key">${i.alias}</span><span class="arrow-sep" style="margin:0 8px;">→</span><span class="alias-val">${i.full}</span></div>`).join('')}</div>`:'';
-  document.getElementById('tab_content').innerHTML=`<div class="section-label" style="margin-bottom:6px;">Campaign aliases</div><p class="hint" style="margin-bottom:14px;">Give short names to long campaign names. Claude uses these when structuring your log and answering history questions.</p><div id="alias_list">${rows}</div><button class="btn-sm" style="margin-top:8px;" onclick="addAliasRow()">+ Add alias</button><div class="btn-row" style="margin-top:14px;"><button class="btn btn-primary" onclick="saveInstructions()">Save</button></div><div class="status" id="instr_status"></div>${display}`;
+  var meta=getPortfolioMeta(selectedName);
+  var notes=meta.instructionNotes||'';
+  document.getElementById('tab_content').innerHTML=
+    '<div class="section-label" style="margin-bottom:8px;">Instructions for Claude</div>'
+    +'<p class="hint" style="margin-bottom:12px;">Write anything you want Claude to know about this portfolio. Campaign names, rules, context, priorities — plain text, no structure needed.</p>'
+    +'<textarea id="instr_notes" style="min-height:200px;" placeholder="Examples:&#10;Campaign 1 = UnicornBD Exact unicorn birthday decorations&#10;Never cut budget on broad, it runs out every day by noon&#10;Target TACOS 12%, never go above 18%&#10;Pause phrase if ACOS exceeds 50% for 2 weeks in a row">'+esc(notes)+'</textarea>'
+    +'<div class="btn-row"><button class="btn btn-primary" onclick="saveInstructions()">Save</button></div>'
+    +'<div class="status" id="instr_status"></div>';
 }
-function addAliasRow(){const meta=getPortfolioMeta(selectedName);if(!meta.instructions)meta.instructions=[];meta.instructions.push({alias:'',full:''});setPortfolioMeta(selectedName,meta);renderInstructionsTab();setTimeout(()=>{const els=document.querySelectorAll('[id^="alias_"]');if(els.length)els[els.length-1].focus();},50);}
-function deleteAlias(idx){const meta=getPortfolioMeta(selectedName);meta.instructions.splice(idx,1);setPortfolioMeta(selectedName,meta);renderInstructionsTab();}
+
 function saveInstructions(){
-  const meta=getPortfolioMeta(selectedName),instrs=[];let i=0;
-  while(document.getElementById('alias_'+i)){const a=document.getElementById('alias_'+i).value.trim(),f=document.getElementById('full_'+i).value.trim();if(a||f)instrs.push({alias:a,full:f});i++;}
-  meta.instructions=instrs;setPortfolioMeta(selectedName,meta);document.getElementById('instr_status').textContent='Saved.';document.getElementById('instr_status').className='status ok';setTimeout(renderInstructionsTab,600);
+  var meta=getPortfolioMeta(selectedName);
+  meta.instructionNotes=document.getElementById('instr_notes').value.trim();
+  setPortfolioMeta(selectedName,meta);
+  document.getElementById('instr_status').textContent='Saved.';
+  document.getElementById('instr_status').className='status ok';
 }
+
 
 async function renderHistoryTab(){
   document.getElementById('tab_content').innerHTML=`<div style="font-size:13px;color:#9c836a;padding:20px 0;">Loading history from Supabase…</div>`;
@@ -604,7 +610,7 @@ async function askHistory(){
   const key=getApiKey();if(!key){alert('Add your Anthropic API key in Settings first.');return;}
   const responseEl=document.getElementById('ask_response');responseEl.style.display='block';responseEl.textContent='Thinking…';
   const rows=window._historyRows||[],meta=getPortfolioMeta(selectedName);
-  const instrText=(meta.instructions&&meta.instructions.length)?'\nCampaign aliases:\n'+meta.instructions.map(i=>`- "${i.alias}" = "${i.full}"`).join('\n'):'';
+  var instrText=meta.instructionNotes?'\nPortfolio instructions:\n'+meta.instructionNotes:'';
   const historyText=rows.map(r=>`[${r.week}] [${r.campaign||'general'}] ${r.what_changed||''} | Why: ${r.why||''} | Verdict: ${r.verdict||''} | Raw: ${(r.raw_notes||'').slice(0,200)}`).join('\n');
   const prompt=`You are a PPC analyst reviewing the full history of portfolio "${selectedName}".${instrText}\n\nHistory:\n${historyText||'No history yet.'}\n\nQuestion: ${q}\n\nAnswer directly, reference specific weeks, be concise and practical.`;
   try{
