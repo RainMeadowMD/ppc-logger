@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PPC Session Logger – RainMeadow</title>
-<link rel="icon" type="image/x-icon" href="favicon.ico"><link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5efe6; color: #3d2e1e; }
@@ -222,6 +223,21 @@ textarea:focus { border-color:#c9956a; }
 .btn-save-camp:hover { background:#5a4230; }
 .btn-cancel-camp { font-size:12px; padding:5px 12px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#5a4230; cursor:pointer; }
 
+
+.camp-actions { padding:8px 14px 10px; border-top:1px solid #f0e8df; display:flex; gap:8px; }
+.btn-edit { font-size:12px; padding:4px 12px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#5a4230; cursor:pointer; }
+.btn-edit:hover { background:#f5ece2; }
+.edit-label { font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:#9c836a; margin:8px 0 3px; display:block; }
+.edit-input { width:100%; font-family:inherit; font-size:13px; padding:7px 9px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#3d2e1e; outline:none; margin-bottom:2px; box-sizing:border-box; }
+.edit-input:focus { border-color:#c9956a; }
+.edit-textarea { width:100%; font-family:inherit; font-size:13px; padding:7px 9px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#3d2e1e; outline:none; resize:vertical; min-height:60px; box-sizing:border-box; }
+.edit-textarea:focus { border-color:#c9956a; }
+.verdict-sel { font-size:12px; padding:4px 8px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#3d2e1e; cursor:pointer; outline:none; }
+.btn-save-camp { font-size:12px; padding:5px 14px; background:#3d2e1e; color:#fffdf9; border:none; border-radius:5px; cursor:pointer; }
+.btn-save-camp:hover { background:#5a4230; }
+.btn-cancel-camp { font-size:12px; padding:5px 12px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#5a4230; cursor:pointer; }
+.sync-indicator { font-size:11px; color:rgba(255,253,249,0.5); }
+.sync-indicator.synced { color:#a8d5b5; }
 </style>
 </head>
 <body>
@@ -327,137 +343,231 @@ const SK_META  = 'ppc_meta_v1';
 const SK_LOG   = 'ppc_log_v5';
 
 const DEFAULT_PORTFOLIOS = [
-  {name:'UnicornBD-2',asin:'B0F2TRLRXK'},{name:'LuauBD',asin:'B0DP1M3KRL'},
-  {name:'WinnieBSh-2',asin:'B0DQVJ4G19'},{name:'PinkWinnieSet',asin:'B0F9X7CPXC'},
-  {name:'WinnieTW',asin:'B0DQVG9MKQ'},{name:'EngagementSet-2',asin:'B0DQVHGNXF'},
-  {name:'PinkWinnieGarl',asin:'B0F9X9HYBB'},{name:'Berry1stBD',asin:'B0FT8R8T14'},
-  {name:'WinnieBSh',asin:'B0CF43CR8Y'},{name:'MermaidPD-2',asin:'B0FT8T2KBG'},
-  {name:'UnicornBD',asin:'B0C869DZ3Y'},{name:'CarWedding',asin:'B0DQVHKNSZ'},
-  {name:'PinkWinnieTW',asin:'B0G1TM98CX'},{name:'FloralBSh',asin:'B0BQJKJB9F'},
-  {name:'LuauBD-2',asin:'B0FT8TRL9V'},{name:'WoodlandBSh',asin:'B0FT8N1RZS'},
-  {name:'TBearBSh-2',asin:'B0FT8TKS38'},{name:'PinkBridal-2',asin:'B0DPGMVQGQ'},
-  {name:'MermaidPD',asin:'B0C86FL2KG'},{name:'TwinkleGR',asin:'B09KS78P88'},
-  {name:'EngagementSet',asin:'B0BJDWG1K3'},{name:'ButterflyBSh',asin:'B0CZ9JT31N'},
-  {name:'GarlandB-2',asin:'B0D8LFSXPK'},{name:'SageBridal',asin:'B09PF2CTKR'},
-  {name:'GarlandG-2',asin:'B0D7J4ZVBQ'},{name:'BohoBSh',asin:'B0BQJH9PBB'},
-  {name:'SageBSh',asin:'B09PF2JBJT'},{name:'KSpTW',asin:'B07VX7G1T5'},
-  {name:'UnderSeaBD',asin:'B0DQVJG9MQ'},{name:'ColorfulBD',asin:'B0B888QX1K'},
-  {name:'KSpSet',asin:'B07G12YQ3F'},{name:'KSpBanner',asin:'B07CZFPM7R'},
-  {name:'ColorfulBox',asin:'B0BCQT8698'},{name:'TBearTW',asin:'B09P3RRYZC'},
-  {name:'50BD',asin:'B0FHXVVNCV'},{name:'TBearBSh',asin:'B087BSV8SB'},
-  {name:'TBearCP',asin:'B0BZVV4M4D'},{name:'PinkBridal',asin:'B09KS5P2DP'},
-  {name:'JumboGirl',asin:'B085YCQ6KJ'},{name:'JumboBoy',asin:'B085YCQWG2'},
-  {name:'SafariBSh',asin:'B0968LK5ZN'},{name:'80sBD',asin:'B0GGMLFDVY'},
-  {name:'CowboyBSh',asin:'B0GGJFDFYF'}
+  {name:'50BD',asin:'B0FHXVVNCV'},{name:'80sBD',asin:'B0GGMLFDVY'},
+  {name:'Berry1stBD',asin:'B0FT8R8T14'},{name:'BohoBSh',asin:'B0BQJH9PBB'},
+  {name:'ButterflyBSh',asin:'B0CZ9JT31N'},{name:'CarWedding',asin:'B0DQVHKNSZ'},
+  {name:'ColorfulBD',asin:'B0B888QX1K'},{name:'ColorfulBox',asin:'B0BCQT8698'},
+  {name:'CowboyBSh',asin:'B0GGJFDFYF'},{name:'EngagementSet',asin:'B0BJDWG1K3'},
+  {name:'EngagementSet-2',asin:'B0DQVHGNXF'},{name:'FloralBSh',asin:'B0BQJKJB9F'},
+  {name:'GarlandB-2',asin:'B0D8LFSXPK'},{name:'GarlandG-2',asin:'B0D7J4ZVBQ'},
+  {name:'JumboBoy',asin:'B085YCQWG2'},{name:'JumboGirl',asin:'B085YCQ6KJ'},
+  {name:'KSpBanner',asin:'B07CZFPM7R'},{name:'KSpSet',asin:'B07G12YQ3F'},
+  {name:'KSpTW',asin:'B07VX7G1T5'},{name:'LuauBD',asin:'B0DP1M3KRL'},
+  {name:'LuauBD-2',asin:'B0FT8TRL9V'},{name:'MermaidPD',asin:'B0C86FL2KG'},
+  {name:'MermaidPD-2',asin:'B0FT8T2KBG'},{name:'PinkBridal',asin:'B09KS5P2DP'},
+  {name:'PinkBridal-2',asin:'B0DPGMVQGQ'},{name:'PinkWinnieGarl',asin:'B0F9X9HYBB'},
+  {name:'PinkWinnieSet',asin:'B0F9X7CPXC'},{name:'PinkWinnieTW',asin:'B0G1TM98CX'},
+  {name:'SafariBSh',asin:'B0968LK5ZN'},{name:'SageBridal',asin:'B09PF2CTKR'},
+  {name:'SageBSh',asin:'B09PF2JBJT'},{name:'TBearBSh',asin:'B087BSV8SB'},
+  {name:'TBearBSh-2',asin:'B0FT8TKS38'},{name:'TBearCP',asin:'B0BZVV4M4D'},
+  {name:'TBearTW',asin:'B09P3RRYZC'},{name:'TwinkleGR',asin:'B09KS78P88'},
+  {name:'UnderSeaBD',asin:'B0DQVJG9MQ'},{name:'UnicornBD',asin:'B0C869DZ3Y'},
+  {name:'UnicornBD-2',asin:'B0F2TRLRXK'},{name:'WinnieBSh',asin:'B0CF43CR8Y'},
+  {name:'WinnieBSh-2',asin:'B0DQVJ4G19'},{name:'WinnieTW',asin:'B0DQVG9MKQ'},
+  {name:'WoodlandBSh',asin:'B0FT8N1RZS'}
 ];
 
-let weekOffset=0, selectedName=null, currentTab='log', filterText='';
+let weekOffset = 0, selectedName = null, currentTab = 'log', filterText = '';
 
-function getPassword(){return localStorage.getItem('ppc_password')||DEFAULT_PW;}
-function doLogin(){
-  const pw=document.getElementById('pw_input').value;
-  if(pw===getPassword()){sessionStorage.setItem('ppc_auth','1');document.getElementById('login_screen').style.display='none';document.getElementById('app').style.display='flex';init();}
-  else document.getElementById('login_err').textContent='Incorrect password.';
+// ── AUTH ──────────────────────────────────────────────────────────────────
+function getPassword() { return localStorage.getItem('ppc_password') || DEFAULT_PW; }
+function doLogin() {
+  var pw = document.getElementById('pw_input').value;
+  if (pw === getPassword()) {
+    sessionStorage.setItem('ppc_auth','1');
+    document.getElementById('login_screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    init();
+  } else {
+    document.getElementById('login_err').textContent = 'Incorrect password.';
+  }
 }
 
-function setSyncStatus(state,msg){const el=document.getElementById('sync_indicator');el.textContent=msg;el.className='sync-indicator'+(state?' '+state:'');}
-async function supabaseInsert(row){
+// ── UTILS ─────────────────────────────────────────────────────────────────
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escA(s) { return String(s||'').replace(/"/g,'&quot;'); }
+
+// ── SUPABASE ──────────────────────────────────────────────────────────────
+function setSyncStatus(state, msg) {
+  var el = document.getElementById('sync_indicator');
+  el.textContent = msg;
+  el.className = 'sync-indicator' + (state ? ' '+state : '');
+}
+async function supabaseInsert(row) {
   setSyncStatus('','⟳ syncing…');
-  try{
-    const res=await fetch(`${SUPA_URL}/rest/v1/ppc_logs`,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':`Bearer ${SUPA_KEY}`,'Prefer':'return=minimal'},body:JSON.stringify(row)});
-    if(!res.ok)throw new Error(await res.text());
-    setSyncStatus('synced','✓ synced');setTimeout(()=>setSyncStatus('',''),3000);
-  }catch(e){setSyncStatus('','');console.warn('Supabase sync failed:',e);}
+  try {
+    var res = await fetch(SUPA_URL+'/rest/v1/ppc_logs', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Prefer':'return=minimal'},
+      body:JSON.stringify(row)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    setSyncStatus('synced','✓ synced');
+    setTimeout(function(){ setSyncStatus('',''); }, 3000);
+  } catch(e) { setSyncStatus('',''); console.warn('Supabase insert failed:',e); }
 }
-async function supabaseFetchHistory(portfolio){
-  try{
-    const res=await fetch(`${SUPA_URL}/rest/v1/ppc_logs?portfolio=eq.${encodeURIComponent(portfolio)}&order=created_at.desc`,{headers:{'apikey':SUPA_KEY,'Authorization':`Bearer ${SUPA_KEY}`}});
-    if(!res.ok)throw new Error();return await res.json();
-  }catch{return [];}
+async function supabaseFetchHistory(portfolio) {
+  try {
+    var res = await fetch(SUPA_URL+'/rest/v1/ppc_logs?portfolio=eq.'+encodeURIComponent(portfolio)+'&order=created_at.desc',
+      {headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}});
+    if (!res.ok) throw new Error();
+    return await res.json();
+  } catch(e) { return []; }
 }
-async function supabaseFetchWeek(wk){
-  try{
-    const res=await fetch(`${SUPA_URL}/rest/v1/ppc_logs?week=eq.${encodeURIComponent(wk)}&order=created_at.asc`,{headers:{'apikey':SUPA_KEY,'Authorization':`Bearer ${SUPA_KEY}`}});
-    if(!res.ok)throw new Error();return await res.json();
-  }catch{return [];}
+async function supabaseFetchWeek(wk) {
+  try {
+    var res = await fetch(SUPA_URL+'/rest/v1/ppc_logs?week=eq.'+encodeURIComponent(wk)+'&order=created_at.asc',
+      {headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}});
+    if (!res.ok) throw new Error();
+    return await res.json();
+  } catch(e) { return []; }
+}
+async function supabaseDeleteRow(id) {
+  try {
+    await fetch(SUPA_URL+'/rest/v1/ppc_logs?id=eq.'+id,
+      {method:'DELETE', headers:{'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY}});
+  } catch(e) { console.warn('Supabase delete failed:',e); }
 }
 
-function getPortfolios(){try{const s=JSON.parse(localStorage.getItem(SK_PORTS));return s&&s.length?s:DEFAULT_PORTFOLIOS;}catch{return DEFAULT_PORTFOLIOS;}}
-function savePortfolios(l){localStorage.setItem(SK_PORTS,JSON.stringify(l));}
-function openAddModal(){document.getElementById('new_p_name').value='';document.getElementById('new_p_asin').value='';document.getElementById('add_modal').classList.add('open');setTimeout(()=>document.getElementById('new_p_name').focus(),50);}
-function addPortfolio(){
-  const name=document.getElementById('new_p_name').value.trim(),asin=document.getElementById('new_p_asin').value.trim();
-  if(!name||!asin)return;
-  const list=getPortfolios();
-  if(list.find(p=>p.name.toLowerCase()===name.toLowerCase())){alert('Already exists.');return;}
-  list.push({name,asin});savePortfolios(list);closeModal('add_modal');renderList();
+// ── PORTFOLIOS ────────────────────────────────────────────────────────────
+function getPortfolios() {
+  try { var s=JSON.parse(localStorage.getItem(SK_PORTS)); return s&&s.length?s:DEFAULT_PORTFOLIOS; }
+  catch(e) { return DEFAULT_PORTFOLIOS; }
+}
+function savePortfolios(l) { localStorage.setItem(SK_PORTS, JSON.stringify(l)); }
+function openAddModal() {
+  document.getElementById('new_p_name').value='';
+  document.getElementById('new_p_asin').value='';
+  document.getElementById('add_modal').classList.add('open');
+  setTimeout(function(){ document.getElementById('new_p_name').focus(); }, 50);
+}
+function addPortfolio() {
+  var name = document.getElementById('new_p_name').value.trim();
+  var asin = document.getElementById('new_p_asin').value.trim();
+  if (!name||!asin) return;
+  var list = getPortfolios();
+  if (list.find(function(p){ return p.name.toLowerCase()===name.toLowerCase(); })) { alert('Already exists.'); return; }
+  list.push({name:name,asin:asin});
+  list.sort(function(a,b){ return a.name.localeCompare(b.name); });
+  savePortfolios(list);
+  closeModal('add_modal');
+  renderList();
 }
 
-function getMeta(){try{return JSON.parse(localStorage.getItem(SK_META)||'{}');}catch{return {};}}
-function saveMeta(d){localStorage.setItem(SK_META,JSON.stringify(d));}
-function getPortfolioMeta(name){return getMeta()[name]||{role:'',tacosMin:'',tacosMax:'',notes:'',instructions:[]};}
-function setPortfolioMeta(name,data){const m=getMeta();m[name]=data;saveMeta(m);}
+// ── META ──────────────────────────────────────────────────────────────────
+function getMeta() { try { return JSON.parse(localStorage.getItem(SK_META)||'{}'); } catch(e) { return {}; } }
+function saveMeta(d) { localStorage.setItem(SK_META, JSON.stringify(d)); }
+function getPortfolioMeta(name) { return getMeta()[name]||{role:'',tacosMin:'',tacosMax:'',notes:'',instructionNotes:''}; }
+function setPortfolioMeta(name, data) { var m=getMeta(); m[name]=data; saveMeta(m); }
 
-function getApiKey(){return localStorage.getItem('ppc_api_key')||'';}
-function showSettings(){document.getElementById('set_api').value=getApiKey();document.getElementById('set_pw').value=getPassword();document.getElementById('settings_status').textContent='';document.getElementById('settings_modal').classList.add('open');}
-function saveSettings(){
-  const k=document.getElementById('set_api').value.trim(),p=document.getElementById('set_pw').value.trim();
-  if(k)localStorage.setItem('ppc_api_key',k);if(p)localStorage.setItem('ppc_password',p);
-  document.getElementById('settings_status').textContent='Saved.';setTimeout(()=>closeModal('settings_modal'),700);
+// ── SETTINGS ──────────────────────────────────────────────────────────────
+function getApiKey() { return localStorage.getItem('ppc_api_key')||''; }
+function showSettings() {
+  document.getElementById('set_api').value = getApiKey();
+  document.getElementById('set_pw').value = getPassword();
+  document.getElementById('settings_status').textContent = '';
+  document.getElementById('settings_modal').classList.add('open');
 }
-function closeModal(id){document.getElementById(id).classList.remove('open');}
+function saveSettings() {
+  var k=document.getElementById('set_api').value.trim();
+  var p=document.getElementById('set_pw').value.trim();
+  if (k) localStorage.setItem('ppc_api_key',k);
+  if (p) localStorage.setItem('ppc_password',p);
+  document.getElementById('settings_status').textContent='Saved.';
+  setTimeout(function(){ closeModal('settings_modal'); }, 700);
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
-function weekStart(off){const d=new Date(),day=d.getDay();d.setDate(d.getDate()-(day===0?6:day-1)+off*7);d.setHours(0,0,0,0);return d;}
-function weekKey(off){return weekStart(off).toISOString().slice(0,10);}
-function weekLabel(off){const d=weekStart(off),e=new Date(d);e.setDate(d.getDate()+6);const f=x=>x.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});return f(d)+' – '+f(e)+(off===0?' (this week)':off===-1?' (last week)':'');}
-function shiftWeek(dir){weekOffset+=dir;if(weekOffset>0)weekOffset=0;document.getElementById('wk_label').textContent=weekLabel(weekOffset);document.getElementById('next_btn').disabled=weekOffset>=0;renderList();if(selectedName)renderCurrentTab();}
+// ── WEEK ──────────────────────────────────────────────────────────────────
+function weekStart(off) {
+  var d=new Date(), day=d.getDay();
+  d.setDate(d.getDate()-(day===0?6:day-1)+off*7);
+  d.setHours(0,0,0,0);
+  return d;
+}
+function weekKey(off) { return weekStart(off).toISOString().slice(0,10); }
+function weekLabel(off) {
+  var d=weekStart(off), e=new Date(d);
+  e.setDate(d.getDate()+6);
+  var f=function(x){ return x.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); };
+  return f(d)+' - '+f(e)+(off===0?' (this week)':off===-1?' (last week)':'');
+}
+function shiftWeek(dir) {
+  weekOffset+=dir;
+  if (weekOffset>0) weekOffset=0;
+  document.getElementById('wk_label').textContent = weekLabel(weekOffset);
+  document.getElementById('next_btn').disabled = weekOffset>=0;
+  renderList();
+  if (selectedName) renderCurrentTab();
+}
 
-function loadAll(){try{return JSON.parse(localStorage.getItem(SK_LOG)||'{}');}catch{return {};}}
-function saveAll(d){localStorage.setItem(SK_LOG,JSON.stringify(d));}
-function getEntry(name){return(loadAll()[weekKey(weekOffset)]||{})[name]||null;}
-function setEntry(name,d){const all=loadAll(),wk=weekKey(weekOffset);if(!all[wk])all[wk]={};all[wk][name]=d;saveAll(all);}
+// ── LOCAL STORAGE ─────────────────────────────────────────────────────────
+function loadAll() { try { return JSON.parse(localStorage.getItem(SK_LOG)||'{}'); } catch(e) { return {}; } }
+function saveAll(d) { localStorage.setItem(SK_LOG, JSON.stringify(d)); }
+function getEntry(name) { return (loadAll()[weekKey(weekOffset)]||{})[name]||null; }
+function setEntry(name,d) { var all=loadAll(), wk=weekKey(weekOffset); if(!all[wk])all[wk]={}; all[wk][name]=d; saveAll(all); }
 
-function filterList(val){filterText=val.toLowerCase();renderList();}
-function renderList(){
-  const all=loadAll(),wkData=all[weekKey(weekOffset)]||{},ports=getPortfolios();
-  const filtered=ports.filter(p=>p.name.toLowerCase().includes(filterText));
-  const logged=filtered.filter(p=>wkData[p.name]).sort((a,b)=>a.name.localeCompare(b.name));const unlogged=filtered.filter(p=>!wkData[p.name]).sort((a,b)=>a.name.localeCompare(b.name));const sorted=[...logged,...unlogged];
-  document.getElementById('p_list').innerHTML=sorted.map(p=>`<div class="p-item${p.name===selectedName?' active':''}" onclick="selectPortfolio('${p.name}')"><span class="p-name">${p.name}</span><span class="p-dot${wkData[p.name]?' logged':''}"></span></div>`).join('');
-  document.getElementById('sidebar_foot').textContent=`${Object.keys(wkData).length} of ${ports.length} logged this week`;
+// ── SIDEBAR ───────────────────────────────────────────────────────────────
+function filterList(val) { filterText=val.toLowerCase(); renderList(); }
+function renderList() {
+  var all=loadAll(), wkData=all[weekKey(weekOffset)]||{}, ports=getPortfolios();
+  var filtered=ports.filter(function(p){ return p.name.toLowerCase().includes(filterText); });
+  var logged=filtered.filter(function(p){ return wkData[p.name]; }).sort(function(a,b){ return a.name.localeCompare(b.name); });
+  var unlogged=filtered.filter(function(p){ return !wkData[p.name]; }).sort(function(a,b){ return a.name.localeCompare(b.name); });
+  var sorted=logged.concat(unlogged);
+  document.getElementById('p_list').innerHTML=sorted.map(function(p){
+    var active=p.name===selectedName?' active':'';
+    var dot=wkData[p.name]?' logged':'';
+    return '<div class="p-item'+active+'" onclick="selectPortfolio(\''+p.name+'\')"><span class="p-name">'+p.name+'</span><span class="p-dot'+dot+'"></span></div>';
+  }).join('');
+  document.getElementById('sidebar_foot').textContent=Object.keys(wkData).length+' of '+ports.length+' logged this week';
   document.getElementById('wk_label').textContent=weekLabel(weekOffset);
   document.getElementById('next_btn').disabled=weekOffset>=0;
 }
 
-function selectPortfolio(name){
-  selectedName=name;const p=getPortfolios().find(x=>x.name===name);
-  document.getElementById('main_title').textContent=p.name;document.getElementById('main_asin').textContent=p.asin;
-  document.getElementById('tab_bar').style.display='flex';setTab('log');renderList();
+// ── NAVIGATION ────────────────────────────────────────────────────────────
+function selectPortfolio(name) {
+  selectedName=name;
+  var p=getPortfolios().find(function(x){ return x.name===name; });
+  document.getElementById('main_title').textContent=p.name;
+  document.getElementById('main_asin').textContent=p.asin;
+  document.getElementById('tab_bar').style.display='flex';
+  setTab('log');
+  renderList();
 }
-function setTab(t){
-  currentTab=t;['log','strategy','instructions','history'].forEach(id=>document.getElementById('t_'+id).className='tab-btn'+(t===id?' active':''));
+function setTab(t) {
+  currentTab=t;
+  ['log','strategy','instructions','history'].forEach(function(id){
+    document.getElementById('t_'+id).className='tab-btn'+(t===id?' active':'');
+  });
   renderCurrentTab();
 }
-function renderCurrentTab(){if(!selectedName)return;({log:renderLogTab,strategy:renderStrategyTab,instructions:renderInstructionsTab,history:renderHistoryTab}[currentTab]||renderLogTab)();}
+function renderCurrentTab() {
+  if (!selectedName) return;
+  var map={log:renderLogTab,strategy:renderStrategyTab,instructions:renderInstructionsTab,history:renderHistoryTab};
+  if (map[currentTab]) map[currentTab]();
+}
 
-function renderLogTab(){
-  const entry=getEntry(selectedName),hasKey=!!getApiKey();
-  const noKey='<div style="background:#fef3cd;border:1px solid #e8c84a;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#7a5c00;">No API key — analysis disabled. <a style="color:#c9956a;cursor:pointer;text-decoration:underline;" onclick="showSettings()">Settings</a></div>';
-  const banner=!hasKey?noKey:'';
-  if(!entry){
-    document.getElementById('tab_content').innerHTML=banner+'<div class="section-label" style="margin-bottom:8px;">This week\'s notes</div>'
+// ── LOG TAB ───────────────────────────────────────────────────────────────
+function renderLogTab() {
+  var entry=getEntry(selectedName), hasKey=!!getApiKey();
+  var banner=!hasKey ? '<div style="background:#fef3cd;border:1px solid #e8c84a;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#7a5c00;">No API key — analysis disabled. <a style="color:#c9956a;cursor:pointer;text-decoration:underline;" onclick="showSettings()">Settings</a></div>' : '';
+  if (!entry) {
+    document.getElementById('tab_content').innerHTML=banner
+      +'<div class="section-label" style="margin-bottom:8px;">This week\'s notes</div>'
       +'<textarea id="dump_ta" style="min-height:150px;" placeholder="Speak into Wispr Flow then paste. Just talk naturally."></textarea>'
-      +'<p class="hint">Mention campaign types as you talk. Claude will use your Instructions tab aliases.</p>'
+      +'<p class="hint">Mention campaign types as you talk. Claude will use your Instructions for context.</p>'
       +'<div class="btn-row"><button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">Save + analyse</button>'
       +'<button class="btn" onclick="saveRaw()">Just save</button></div>'
       +'<div class="status" id="status_msg"></div>';
     return;
   }
-  if(entry.campaigns&&entry.campaigns.length){
-    const saved=entry.savedAt?new Date(entry.savedAt).toLocaleString('en-GB'):'';
-    let html=banner;
-    entry.campaigns.forEach(function(c,i){html+=campBlockHTML(c,i);});
-    html+='<div class="sync-note">Saved '+saved+' synced to Supabase</div>'
-      +'<div class="btn-row" style="margin-top:10px;"><button class="btn" onclick="reEdit()">Edit raw notes</button></div>';
+  if (entry.campaigns && entry.campaigns.length) {
+    var saved=entry.savedAt ? new Date(entry.savedAt).toLocaleString('en-GB') : '';
+    var html=banner;
+    for (var i=0;i<entry.campaigns.length;i++) { html+=campBlockHTML(entry.campaigns[i],i); }
+    html+='<div class="sync-note">Saved '+saved+' · synced to Supabase</div>';
+    html+='<div class="btn-row" style="margin-top:10px;"><button class="btn" onclick="reEdit()">Edit raw notes</button></div>';
     document.getElementById('tab_content').innerHTML=html;
   } else {
     document.getElementById('tab_content').innerHTML='<div class="raw-note">'+esc(entry.raw)+'</div>'
@@ -465,52 +575,40 @@ function renderLogTab(){
   }
 }
 
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-function escA(s){return String(s||'').replace(/"/g,'&quot;');}
-
-function campBlockHTML(c,i){
+function campBlockHTML(c,i) {
   var vc=c.verdict==='sound'?'v-sound':c.verdict==='risky'?'v-risky':'v-unclear';
   var watches='';
-  c.watch.forEach(function(w){watches+='<div class="watch-item">'+esc(w)+'</div>';});
+  for (var w=0;w<c.watch.length;w++) { watches+='<div class="watch-item">'+esc(c.watch[w])+'</div>'; }
   return '<div class="camp-block" id="cb_'+i+'">'
     +'<div class="camp-head"><span class="camp-name">'+esc(c.campaign)+'</span><span class="verdict '+vc+'">'+c.verdict+'</span></div>'
-    +'<div class="camp-body">'
-    +'<div class="camp-what">'+esc(c.what)+'</div>'
-    +'<div class="camp-why">'+esc(c.why)+'</div>'
-    +'<div class="watch-label">Check next week</div>'
-    +watches
-    +'</div>'
+    +'<div class="camp-body"><div class="camp-what">'+esc(c.what)+'</div><div class="camp-why">'+esc(c.why)+'</div>'
+    +'<div class="watch-label">Check next week</div>'+watches+'</div>'
     +'<div class="camp-actions"><button class="btn-edit" onclick="editCamp('+i+')">Edit</button></div>'
     +'</div>';
 }
 
-function editCamp(i){
-  var entry=getEntry(selectedName);if(!entry||!entry.campaigns)return;
+function editCamp(i) {
+  var entry=getEntry(selectedName); if (!entry||!entry.campaigns) return;
   var c=entry.campaigns[i];
+  var opts=['sound','risky','unclear'].map(function(v){
+    return '<option value="'+v+'"'+(c.verdict===v?' selected':'')+'>'+v+'</option>';
+  }).join('');
   var html='<div class="camp-head" style="gap:8px;flex-wrap:wrap;">'
     +'<input class="edit-input" id="ec_name_'+i+'" value="'+escA(c.campaign)+'" placeholder="Campaign name" style="flex:1;min-width:120px;margin:0;" />'
-    +'<select class="verdict-sel" id="ec_v_'+i+'">'
-    +'<option value="sound"'+(c.verdict==='sound'?' selected':'')+'>sound</option>'
-    +'<option value="risky"'+(c.verdict==='risky'?' selected':'')+'>risky</option>'
-    +'<option value="unclear"'+(c.verdict==='unclear'?' selected':'')+'>unclear</option>'
-    +'</select></div>'
+    +'<select class="verdict-sel" id="ec_v_'+i+'">'+opts+'</select></div>'
     +'<div class="camp-body">'
-    +'<span class="edit-label">What changed</span>'
-    +'<input class="edit-input" id="ec_what_'+i+'" value="'+escA(c.what)+'" placeholder="What changed" />'
-    +'<span class="edit-label">Why</span>'
-    +'<input class="edit-input" id="ec_why_'+i+'" value="'+escA(c.why)+'" placeholder="Reason" />'
+    +'<span class="edit-label">What changed</span><input class="edit-input" id="ec_what_'+i+'" value="'+escA(c.what)+'" />'
+    +'<span class="edit-label">Why</span><input class="edit-input" id="ec_why_'+i+'" value="'+escA(c.why)+'" />'
     +'<span class="edit-label">Check next week (one per line)</span>'
     +'<textarea class="edit-textarea" id="ec_watch_'+i+'">'+esc(c.watch.join('\n'))+'</textarea>'
     +'</div>'
-    +'<div class="camp-actions">'
-    +'<button class="btn-save-camp" onclick="saveCamp('+i+')">Save</button>'
-    +'<button class="btn-cancel-camp" onclick="cancelCamp('+i+')">Cancel</button>'
-    +'</div>';
+    +'<div class="camp-actions"><button class="btn-save-camp" onclick="saveCamp('+i+')">Save</button>'
+    +'<button class="btn-cancel-camp" onclick="cancelCamp('+i+')">Cancel</button></div>';
   document.getElementById('cb_'+i).innerHTML=html;
 }
 
-function saveCamp(i){
-  var entry=getEntry(selectedName);if(!entry)return;
+function saveCamp(i) {
+  var entry=getEntry(selectedName); if (!entry) return;
   entry.campaigns[i]={
     campaign:document.getElementById('ec_name_'+i).value.trim(),
     what:document.getElementById('ec_what_'+i).value.trim(),
@@ -522,153 +620,183 @@ function saveCamp(i){
   document.getElementById('cb_'+i).outerHTML=campBlockHTML(entry.campaigns[i],i);
 }
 
-function cancelCamp(i){
-  var entry=getEntry(selectedName);if(!entry)return;
+function cancelCamp(i) {
+  var entry=getEntry(selectedName); if (!entry) return;
   document.getElementById('cb_'+i).outerHTML=campBlockHTML(entry.campaigns[i],i);
 }
 
+function reEdit() {
+  var entry=getEntry(selectedName);
+  document.getElementById('tab_content').innerHTML=
+    '<div class="section-label" style="margin-bottom:8px;">Edit notes</div>'
+    +'<textarea id="dump_ta" style="min-height:150px;">'+esc(entry?entry.raw:'')+'</textarea>'
+    +'<div class="btn-row"><button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">Save + analyse</button>'
+    +'<button class="btn" onclick="saveRaw()">Just save</button></div>'
+    +'<div class="status" id="status_msg"></div>';
+}
 
-function reEdit(){const entry=getEntry(selectedName);document.getElementById('tab_content').innerHTML=`<div class="section-label" style="margin-bottom:8px;">Edit notes</div><textarea id="dump_ta" style="min-height:150px;">${entry?entry.raw:''}</textarea><div class="btn-row"><button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">Save + analyse</button><button class="btn" onclick="saveRaw()">Just save</button></div><div class="status" id="status_msg"></div>`;}
-
-function saveRaw(){
-  const raw=document.getElementById('dump_ta').value.trim();if(!raw)return;
-  const p=getPortfolios().find(x=>x.name===selectedName);
-  const entry={raw,campaigns:null,savedAt:new Date().toISOString()};
+function saveRaw() {
+  var raw=document.getElementById('dump_ta').value.trim(); if (!raw) return;
+  var p=getPortfolios().find(function(x){ return x.name===selectedName; });
+  var entry={raw:raw,campaigns:null,savedAt:new Date().toISOString()};
   setEntry(selectedName,entry);
   supabaseInsert({week:weekLabel(weekOffset).replace(/\(.*\)/,'').trim(),portfolio:selectedName,asin:p.asin,campaign:'',what_changed:'',why:'',verdict:'',watch_next:'',raw_notes:raw});
-  document.getElementById('status_msg').textContent='Saved.';document.getElementById('status_msg').className='status ok';
-  renderList();setTimeout(renderLogTab,400);
+  document.getElementById('status_msg').textContent='Saved.';
+  document.getElementById('status_msg').className='status ok';
+  renderList();
+  setTimeout(renderLogTab,400);
 }
 
-async function analyseAndSave(){
-  const raw=document.getElementById('dump_ta').value.trim();if(!raw)return;
-  const key=getApiKey();if(!key){saveRaw();return;}
-  const btn=document.getElementById('save_btn');btn.disabled=true;btn.innerHTML='<span class="spinner"></span> Analysing…';
-  const p=getPortfolios().find(x=>x.name===selectedName);
-  const meta=getPortfolioMeta(selectedName);
-  var instrText=meta.instructionNotes?'Portfolio instructions:\n'+meta.instructionNotes:'';
-  const stratText=meta.role?`Strategy: Role=${meta.role}, Target TACoS ${meta.tacosMin||'?'}–${meta.tacosMax||'?'}%. ${meta.notes||''}`:'' ;
-  const prompt=`Amazon FBA PPC notes for portfolio "${p.name}" (ASIN: ${p.asin}).\n${stratText}\n${instrText}\n\nVoice note:\n"""\n${raw}\n"""\n\nExtract each distinct campaign change. Use alias names when available. Return ONLY valid JSON, no markdown:\n{"campaigns":[{"campaign":"alias or campaign type","what":"one sentence what changed","why":"stated or inferred reason, or not stated","verdict":"sound or risky or unclear","watch":["specific metric to check in 7 days","another specific signal"]}]}\n\nverdict: sound=clear data-driven reason, risky=no data or large change, unclear=vague.\nwatch: specific e.g. "check if ACOS dropped below 35%" not "monitor performance".`;
-  try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1200,messages:[{role:'user',content:prompt}]})});
-    const data=await res.json();if(data.error)throw new Error(data.error.message);
-    const text=data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
-    const parsed=JSON.parse(text);
-    const entry={raw,campaigns:parsed.campaigns,savedAt:new Date().toISOString()};
-    setEntry(selectedName,entry);
-    const wk=weekLabel(weekOffset).replace(/\(.*\)/,'').trim();
-    for(const c of parsed.campaigns){await supabaseInsert({week:wk,portfolio:selectedName,asin:p.asin,campaign:c.campaign,what_changed:c.what,why:c.why,verdict:c.verdict,watch_next:c.watch.join(' | '),raw_notes:raw});}
-    renderList();renderLogTab();
-  }catch(e){document.getElementById('status_msg').textContent='Error: '+e.message+' — saved as raw.';document.getElementById('status_msg').className='status err';saveRaw();btn.disabled=false;btn.innerHTML='Save + analyse';}
-}
-
-function renderStrategyTab(){
+async function analyseAndSave() {
+  var raw=document.getElementById('dump_ta').value.trim(); if (!raw) return;
+  var key=getApiKey(); if (!key) { saveRaw(); return; }
+  var btn=document.getElementById('save_btn');
+  btn.disabled=true; btn.textContent='Analysing...';
+  var p=getPortfolios().find(function(x){ return x.name===selectedName; });
   var meta=getPortfolioMeta(selectedName);
-  var tc=document.getElementById('tab_content');
-  var roles=['SCALE','PROFIT','DEFEND','LIQUIDATE'];
-  var html='<div class="strategy-section"><h3>Role</h3><div class="role-pills" id="role_pills">';
-  roles.forEach(function(r){
-    var sel=(meta.role===r)?' selected':'';
-    html+='<button class="role-pill'+sel+'" id="rp_'+r+'" onclick="pickRole(this,\''+r+'\')">'+r+'</button>';
-  });
-  html+='</div></div>';
-  html+='<div class="strategy-section"><h3>Target TACoS range</h3><div class="tacos-row">';
-  html+='<input type="number" id="tacos_min" value="'+(meta.tacosMin||'')+'" placeholder="Min" min="0" max="100" />';
-  html+='<span>% to</span>';
-  html+='<input type="number" id="tacos_max" value="'+(meta.tacosMax||'')+'" placeholder="Max" min="0" max="100" />';
-  html+='<span>%</span></div></div>';
-  html+='<div class="strategy-section"><h3>Strategy notes</h3>';
-  html+='<textarea id="strat_notes" style="min-height:100px;" placeholder="E.g. Hero product — protect rank.">';
-  html+=esc(meta.notes||'');
-  html+='</textarea></div>';
-  html+='<div class="btn-row"><button class="btn btn-primary" onclick="saveStrategy()">Save strategy</button></div>';
-  html+='<div class="status" id="strat_status"></div>';
-  html+='<div style="margin-top:24px;padding-top:20px;border-top:1px solid #e8ddd0;">';
-  html+='<h3 style="font-size:13px;font-weight:600;margin-bottom:8px;color:#3d2e1e;">Arrange with Claude</h3>';
-  html+='<p class="hint" style="margin-bottom:10px;">Paste rough notes about this portfolio. Claude will extract the role, TACoS range, and strategy notes automatically.</p>';
-  html+='<textarea id="strat_dump" style="min-height:100px;" placeholder="E.g. This is my hero product. Scale aggressively. TACoS should stay around 12-15%. BSR is priority over profit."></textarea>';
-  html+='<div class="btn-row"><button class="btn" id="arrange_btn" onclick="arrangeStrategy()">Arrange with Claude</button></div>';
-  html+='<div class="status" id="arrange_status"></div>';
-  html+='</div>';
-  if(meta.role){
-    html+='<div class="strategy-display" style="margin-top:20px;">';
-    html+='<span class="role-badge role-'+meta.role+'">'+meta.role+'</span>';
-    html+='<div style="font-size:13px;color:#3d2e1e;">TACoS target: <strong>'+(meta.tacosMin||'?')+'% - '+(meta.tacosMax||'?')+'%</strong></div>';
-    if(meta.notes) html+='<div style="margin-top:8px;font-size:13px;color:#6b5040;">'+esc(meta.notes)+'</div>';
-    html+='</div>';
-  }
-  tc.innerHTML=html;
-}
-
-async function arrangeStrategy(){
-  var dump=document.getElementById('strat_dump').value.trim();
-  if(!dump)return;
-  var key=getApiKey();
-  if(!key){alert('Add your Anthropic API key in Settings first.');return;}
-  var btn=document.getElementById('arrange_btn');
-  btn.disabled=true;
-  btn.textContent='Arranging...';
-  var p=getPortfolios().find(function(x){return x.name===selectedName;});
-  var promptText='You are a PPC strategist. Based on these rough notes about the Amazon FBA portfolio '
-    +selectedName+' (ASIN: '+p.asin+'), extract the strategy.'
-    +'\n\nNotes:\n'+dump
-    +'\n\nReturn ONLY valid JSON, no markdown, no backticks:'
-    +'\n{"role":"SCALE or PROFIT or DEFEND or LIQUIDATE","tacosMin":"number only","tacosMax":"number only","notes":"concise 2-3 sentence strategy summary"}'
-    +'\n\nRole guide: SCALE=aggressive growth, PROFIT=maximise margin, DEFEND=protect rank/BSR, LIQUIDATE=clear stock.';
-  try{
+  var instrText=meta.instructionNotes ? 'Portfolio instructions:\n'+meta.instructionNotes : '';
+  var stratText=meta.role ? 'Strategy: Role='+meta.role+', Target TACoS '+(meta.tacosMin||'?')+'-'+(meta.tacosMax||'?')+'%. '+(meta.notes||'') : '';
+  var promptText='Amazon FBA PPC notes for portfolio "'+p.name+'" (ASIN: '+p.asin+').\n'+stratText+'\n'+instrText
+    +'\n\nVoice note:\n"""\n'+raw+'\n"""\n\n'
+    +'Extract each distinct campaign change. Return ONLY valid JSON, no markdown:\n'
+    +'{"campaigns":[{"campaign":"campaign type or name","what":"one sentence what changed","why":"stated or inferred reason","verdict":"sound or risky or unclear","watch":["specific check in 7 days","another signal"]}]}\n\n'
+    +'verdict: sound=data-driven, risky=no data or large change, unclear=vague.\n'
+    +'watch: specific e.g. "check if ACOS dropped below 35%"';
+  try {
     var res=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'x-api-key':key,
-        'anthropic-version':'2023-06-01',
-        'anthropic-dangerous-direct-browser-access':'true'
-      },
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1200,messages:[{role:'user',content:promptText}]})
+    });
+    var data=await res.json();
+    if (data.error) throw new Error(data.error.message);
+    var text=data.content.map(function(b){ return b.text||''; }).join('').replace(/```json|```/g,'').trim();
+    var parsed=JSON.parse(text);
+    var entry={raw:raw,campaigns:parsed.campaigns,savedAt:new Date().toISOString()};
+    setEntry(selectedName,entry);
+    var wk=weekLabel(weekOffset).replace(/\(.*\)/,'').trim();
+    for (var i=0;i<parsed.campaigns.length;i++) {
+      var c=parsed.campaigns[i];
+      await supabaseInsert({week:wk,portfolio:selectedName,asin:p.asin,campaign:c.campaign,what_changed:c.what,why:c.why,verdict:c.verdict,watch_next:c.watch.join(' | '),raw_notes:raw});
+    }
+    renderList(); renderLogTab();
+  } catch(e) {
+    document.getElementById('status_msg').textContent='Error: '+e.message+' — saved as raw.';
+    document.getElementById('status_msg').className='status err';
+    saveRaw();
+    btn.disabled=false; btn.textContent='Save + analyse';
+  }
+}
+
+// ── STRATEGY TAB ──────────────────────────────────────────────────────────
+function renderStrategyTab() {
+  var meta=getPortfolioMeta(selectedName);
+  var roles=['SCALE','PROFIT','DEFEND','LIQUIDATE'];
+  var pills='';
+  for (var r=0;r<roles.length;r++) {
+    var sel=(meta.role===roles[r])?' selected':'';
+    pills+='<button class="role-pill'+sel+'" id="rp_'+roles[r]+'" onclick="pickRole(this,\''+roles[r]+'\')">'+roles[r]+'</button>';
+  }
+  var html='<div class="strategy-section"><h3>Role</h3><div class="role-pills">'+pills+'</div></div>'
+    +'<div class="strategy-section"><h3>Target TACoS range</h3><div class="tacos-row">'
+    +'<input type="number" id="tacos_min" value="'+escA(meta.tacosMin||'')+'" placeholder="Min" min="0" max="100" />'
+    +'<span>% to</span>'
+    +'<input type="number" id="tacos_max" value="'+escA(meta.tacosMax||'')+'" placeholder="Max" min="0" max="100" />'
+    +'<span>%</span></div></div>'
+    +'<div class="strategy-section"><h3>Strategy notes</h3>'
+    +'<textarea id="strat_notes" style="min-height:100px;" placeholder="E.g. Hero product — protect rank at all costs.">'+esc(meta.notes||'')+'</textarea></div>'
+    +'<div class="btn-row"><button class="btn btn-primary" onclick="saveStrategy()">Save strategy</button></div>'
+    +'<div class="status" id="strat_status"></div>'
+    +'<div style="margin-top:24px;padding-top:20px;border-top:1px solid #e8ddd0;">'
+    +'<h3 style="font-size:13px;font-weight:600;margin-bottom:8px;color:#3d2e1e;">Arrange with Claude</h3>'
+    +'<p class="hint" style="margin-bottom:10px;">Paste rough notes about this portfolio. Claude will extract the role, TACoS range, and strategy notes automatically.</p>'
+    +'<textarea id="strat_dump" style="min-height:100px;" placeholder="E.g. This is my hero product. Scale aggressively. TACoS should stay 12-15%. BSR is priority over profit right now."></textarea>'
+    +'<div class="btn-row"><button class="btn" id="arrange_btn" onclick="arrangeStrategy()">Arrange with Claude</button></div>'
+    +'<div class="status" id="arrange_status"></div>'
+    +'</div>';
+  if (meta.role) {
+    html+='<div class="strategy-display" style="margin-top:20px;">'
+      +'<span class="role-badge role-'+meta.role+'">'+meta.role+'</span>'
+      +'<div style="font-size:13px;color:#3d2e1e;">TACoS target: <strong>'+(meta.tacosMin||'?')+'% - '+(meta.tacosMax||'?')+'%</strong></div>'
+      +(meta.notes ? '<div style="margin-top:8px;font-size:13px;color:#6b5040;">'+esc(meta.notes)+'</div>' : '')
+      +'</div>';
+  }
+  document.getElementById('tab_content').innerHTML=html;
+}
+
+function pickRole(btn, r) {
+  var roles=['SCALE','PROFIT','DEFEND','LIQUIDATE'];
+  for (var i=0;i<roles.length;i++) {
+    var el=document.getElementById('rp_'+roles[i]);
+    if (el) el.className='role-pill'+(roles[i]===r?' selected':'');
+  }
+}
+
+function saveStrategy() {
+  var meta=getPortfolioMeta(selectedName);
+  var roles=['SCALE','PROFIT','DEFEND','LIQUIDATE'];
+  for (var i=0;i<roles.length;i++) {
+    var el=document.getElementById('rp_'+roles[i]);
+    if (el && el.classList.contains('selected')) { meta.role=roles[i]; break; }
+  }
+  meta.tacosMin=document.getElementById('tacos_min').value;
+  meta.tacosMax=document.getElementById('tacos_max').value;
+  meta.notes=document.getElementById('strat_notes').value.trim();
+  setPortfolioMeta(selectedName,meta);
+  document.getElementById('strat_status').textContent='Saved.';
+  document.getElementById('strat_status').className='status ok';
+  setTimeout(renderStrategyTab, 600);
+}
+
+async function arrangeStrategy() {
+  var dump=document.getElementById('strat_dump').value.trim(); if (!dump) return;
+  var key=getApiKey();
+  if (!key) { alert('Add your Anthropic API key in Settings first.'); return; }
+  var btn=document.getElementById('arrange_btn');
+  btn.disabled=true; btn.textContent='Arranging...';
+  var p=getPortfolios().find(function(x){ return x.name===selectedName; });
+  var promptText='You are a PPC strategist. Based on these rough notes about the Amazon FBA portfolio "'+p.name+'" (ASIN: '+p.asin+'), extract the strategy.\n\nNotes:\n'+dump+'\n\nReturn ONLY valid JSON, no markdown, no backticks:\n{"role":"SCALE or PROFIT or DEFEND or LIQUIDATE","tacosMin":"number only","tacosMax":"number only","notes":"concise 2-3 sentence strategy summary"}\n\nRole guide: SCALE=aggressive growth, PROFIT=maximise margin, DEFEND=protect rank/BSR, LIQUIDATE=clear stock.';
+  try {
+    var res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:300,messages:[{role:'user',content:promptText}]})
     });
     var data=await res.json();
-    if(data.error)throw new Error(data.error.message);
-    var text=data.content.map(function(b){return b.text||'';}).join('').replace(/```json|```/g,'').trim();
+    if (data.error) throw new Error(data.error.message);
+    var text=data.content.map(function(b){ return b.text||''; }).join('').replace(/```json|```/g,'').trim();
     var parsed=JSON.parse(text);
     var meta=getPortfolioMeta(selectedName);
-    if(parsed.role)meta.role=parsed.role;
-    if(parsed.tacosMin)meta.tacosMin=parsed.tacosMin;
-    if(parsed.tacosMax)meta.tacosMax=parsed.tacosMax;
-    if(parsed.notes)meta.notes=parsed.notes;
+    if (parsed.role) meta.role=parsed.role;
+    if (parsed.tacosMin) meta.tacosMin=parsed.tacosMin;
+    if (parsed.tacosMax) meta.tacosMax=parsed.tacosMax;
+    if (parsed.notes) meta.notes=parsed.notes;
     setPortfolioMeta(selectedName,meta);
     renderStrategyTab();
     setTimeout(function(){
       var el=document.getElementById('strat_status');
-      if(el){el.textContent='Done. Review and save.';el.className='status ok';}
-    },150);
-  }catch(e){
+      if (el) { el.textContent='Done. Review and save.'; el.className='status ok'; }
+    }, 150);
+  } catch(e) {
     var el=document.getElementById('arrange_status');
-    if(el){el.textContent='Error: '+e.message;el.className='status err';}
-    btn.disabled=false;
-    btn.textContent='Arrange with Claude';
+    if (el) { el.textContent='Error: '+e.message; el.className='status err'; }
+    btn.disabled=false; btn.textContent='Arrange with Claude';
   }
 }
 
-
-function saveStrategy(){
-  const meta=getPortfolioMeta(selectedName);let role=window._pickedRole||meta.role||'';
-  ['SCALE','PROFIT','DEFEND','LIQUIDATE'].forEach(r=>{if(document.getElementById('rp_'+r)&&document.getElementById('rp_'+r).classList.contains('selected'))role=r;});
-  meta.role=role;meta.tacosMin=document.getElementById('tacos_min').value;meta.tacosMax=document.getElementById('tacos_max').value;meta.notes=document.getElementById('strat_notes').value.trim();
-  setPortfolioMeta(selectedName,meta);document.getElementById('strat_status').textContent='Saved.';document.getElementById('strat_status').className='status ok';setTimeout(renderStrategyTab,600);
-}
-
-function renderInstructionsTab(){
+// ── INSTRUCTIONS TAB ──────────────────────────────────────────────────────
+function renderInstructionsTab() {
   var meta=getPortfolioMeta(selectedName);
   var notes=meta.instructionNotes||'';
   document.getElementById('tab_content').innerHTML=
     '<div class="section-label" style="margin-bottom:8px;">Instructions for Claude</div>'
-    +'<p class="hint" style="margin-bottom:12px;">Write anything you want Claude to know about this portfolio. Campaign names, rules, context, priorities — plain text, no structure needed.</p>'
-    +'<textarea id="instr_notes" style="min-height:200px;" placeholder="Examples:&#10;Campaign 1 = UnicornBD Exact unicorn birthday decorations&#10;Never cut budget on broad, it runs out every day by noon&#10;Target TACOS 12%, never go above 18%&#10;Pause phrase if ACOS exceeds 50% for 2 weeks in a row">'+esc(notes)+'</textarea>'
+    +'<p class="hint" style="margin-bottom:12px;">Write anything you want Claude to know about this portfolio — campaign names, rules, context, priorities. Plain text.</p>'
+    +'<textarea id="instr_notes" style="min-height:200px;" placeholder="Examples:&#10;Campaign 1 = UnicornBD Exact unicorn birthday decorations&#10;Never cut budget on broad&#10;Target TACoS 12%, never above 18%">'+esc(notes)+'</textarea>'
     +'<div class="btn-row"><button class="btn btn-primary" onclick="saveInstructions()">Save</button></div>'
     +'<div class="status" id="instr_status"></div>';
 }
 
-function saveInstructions(){
+function saveInstructions() {
   var meta=getPortfolioMeta(selectedName);
   meta.instructionNotes=document.getElementById('instr_notes').value.trim();
   setPortfolioMeta(selectedName,meta);
@@ -676,46 +804,123 @@ function saveInstructions(){
   document.getElementById('instr_status').className='status ok';
 }
 
+// ── HISTORY TAB ───────────────────────────────────────────────────────────
+async function renderHistoryTab() {
+  document.getElementById('tab_content').innerHTML='<div style="font-size:13px;color:#9c836a;padding:20px 0;">Loading history from Supabase...</div>';
+  var rows=await supabaseFetchHistory(selectedName);
+  var byWeek={};
+  rows.forEach(function(r){ if (!byWeek[r.week]) byWeek[r.week]=[]; byWeek[r.week].push(r); });
+  var weeks=Object.keys(byWeek).sort(function(a,b){ return b.localeCompare(a); });
+  var weekRows=weeks.length ? weeks.map(function(wk){
+    var entries=byWeek[wk];
+    var raw=entries[0]?entries[0].raw_notes||'':'';
+    var preview=raw.length>350?raw.slice(0,350)+'...':raw;
+    var ids=entries.map(function(r){ return r.id; }).join(',');
+    var safeWk=wk.replace(/[^a-z0-9]/gi,'_');
+    return '<div class="history-week" id="hw_'+safeWk+'">'
+      +'<div class="hw-label" style="display:flex;align-items:center;justify-content:space-between;">'
+      +'<span>'+esc(wk)+'</span>'
+      +'<button onclick="deleteHistoryWeek(\''+escA(wk)+'\',\''+ids+'\')" '
+      +'style="font-size:11px;padding:3px 10px;border:1px solid #ddd2c4;border-radius:4px;background:#fffdf9;color:#b05030;cursor:pointer;">Delete</button>'
+      +'</div>'
+      +'<div class="hw-raw">'+(preview?esc(preview):'No raw notes.')+'</div>'
+      +'</div>';
+  }).join('') : '<div style="font-size:13px;color:#b0a090;font-style:italic;">No history in Supabase yet.</div>';
 
-async function renderHistoryTab(){
-  document.getElementById('tab_content').innerHTML=`<div style="font-size:13px;color:#9c836a;padding:20px 0;">Loading history from Supabase…</div>`;
-  const rows=await supabaseFetchHistory(selectedName);
-  const byWeek={};rows.forEach(r=>{if(!byWeek[r.week])byWeek[r.week]=[];byWeek[r.week].push(r);});
-  const weeks=Object.keys(byWeek).sort((a,b)=>b.localeCompare(a));
-  const weekRows=weeks.length?weeks.map(wk=>{const entries=byWeek[wk],raw=entries[0]?.raw_notes||'',preview=raw.length>350?raw.slice(0,350)+'…':raw;return `<div class="history-week"><div class="hw-label">${wk}</div><div class="hw-raw">${preview||'No raw notes.'}</div></div>`;}).join(''):'<div style="font-size:13px;color:#b0a090;font-style:italic;">No history in Supabase yet for this portfolio.</div>';
-  document.getElementById('tab_content').innerHTML=`<div class="history-ask"><h4>Ask Claude about this portfolio's history</h4><div class="ask-row"><input type="text" id="history_q" placeholder="e.g. Give me all changes to Campaign 1 · What was my ACOS trend · When did I last pause?" onkeydown="if(event.key==='Enter')askHistory()" /><button onclick="askHistory()">Ask ↗</button></div><div id="ask_response" style="display:none;" class="ask-response"></div></div><div class="section-label" style="margin-bottom:10px;">All weeks — raw notes</div>${weekRows}`;
+  document.getElementById('tab_content').innerHTML=
+    '<div class="history-ask"><h4>Ask Claude about this portfolio\'s history</h4>'
+    +'<div class="ask-row"><input type="text" id="history_q" placeholder="e.g. Give me all changes to Campaign 1 · What was my ACOS trend?" onkeydown="if(event.key===\'Enter\')askHistory()" />'
+    +'<button onclick="askHistory()">Ask</button></div>'
+    +'<div id="ask_response" style="display:none;" class="ask-response"></div></div>'
+    +'<div class="section-label" style="margin-bottom:10px;">All weeks — raw notes</div>'
+    +weekRows;
   window._historyRows=rows;
 }
-async function askHistory(){
-  const q=document.getElementById('history_q').value.trim();if(!q)return;
-  const key=getApiKey();if(!key){alert('Add your Anthropic API key in Settings first.');return;}
-  const responseEl=document.getElementById('ask_response');responseEl.style.display='block';responseEl.textContent='Thinking…';
-  const rows=window._historyRows||[],meta=getPortfolioMeta(selectedName);
-  var instrText=meta.instructionNotes?'\nPortfolio instructions:\n'+meta.instructionNotes:'';
-  const historyText=rows.map(r=>`[${r.week}] [${r.campaign||'general'}] ${r.what_changed||''} | Why: ${r.why||''} | Verdict: ${r.verdict||''} | Raw: ${(r.raw_notes||'').slice(0,200)}`).join('\n');
-  const prompt=`You are a PPC analyst reviewing the full history of portfolio "${selectedName}".${instrText}\n\nHistory:\n${historyText||'No history yet.'}\n\nQuestion: ${q}\n\nAnswer directly, reference specific weeks, be concise and practical.`;
-  try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,messages:[{role:'user',content:prompt}]})});
-    const data=await res.json();if(data.error)throw new Error(data.error.message);
-    const text=data.content.map(b=>b.text||'').join('');
+
+async function deleteHistoryWeek(wk, idsStr) {
+  if (!confirm('Delete the log for '+wk+'?\nThis cannot be undone.')) return;
+  var ids=idsStr.split(',').filter(Boolean);
+  for (var i=0;i<ids.length;i++) { await supabaseDeleteRow(ids[i]); }
+  // Also remove from local storage
+  var all=loadAll();
+  Object.keys(all).forEach(function(wkKey){
+    if (all[wkKey] && all[wkKey][selectedName]) {
+      var d=new Date(wkKey), e=new Date(d);
+      e.setDate(d.getDate()+6);
+      var f=function(x){ return x.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); };
+      var label=f(d)+' - '+f(e);
+      if (label===wk || label+'  (this week)'===wk || label+' (last week)'===wk) {
+        delete all[wkKey][selectedName];
+      }
+    }
+  });
+  saveAll(all);
+  renderHistoryTab();
+}
+
+async function askHistory() {
+  var q=document.getElementById('history_q').value.trim(); if (!q) return;
+  var key=getApiKey();
+  if (!key) { alert('Add your Anthropic API key in Settings first.'); return; }
+  var responseEl=document.getElementById('ask_response');
+  responseEl.style.display='block'; responseEl.textContent='Thinking...';
+  var rows=window._historyRows||[];
+  var meta=getPortfolioMeta(selectedName);
+  var instrText=meta.instructionNotes ? '\nInstructions:\n'+meta.instructionNotes : '';
+  var historyText=rows.map(function(r){
+    return '['+r.week+'] ['+( r.campaign||'general')+'] '+(r.what_changed||'')+' | Why: '+(r.why||'')+' | Verdict: '+(r.verdict||'')+' | Raw: '+(r.raw_notes||'').slice(0,200);
+  }).join('\n');
+  var promptText='You are a PPC analyst reviewing the full history of portfolio "'+selectedName+'".'+instrText+'\n\nHistory:\n'+(historyText||'No history yet.')+'\n\nQuestion: '+q+'\n\nAnswer directly, reference specific weeks, be concise and practical.';
+  try {
+    var res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,messages:[{role:'user',content:promptText}]})
+    });
+    var data=await res.json();
+    if (data.error) throw new Error(data.error.message);
+    var text=data.content.map(function(b){ return b.text||''; }).join('');
     responseEl.innerHTML=text.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
-  }catch(e){responseEl.textContent='Error: '+e.message;}
+  } catch(e) { responseEl.textContent='Error: '+e.message; }
 }
 
-async function exportCSV(){
-  const wk=weekLabel(weekOffset).replace(/\(.*\)/,'').trim();
-  const rows=await supabaseFetchWeek(wk);
-  const all=loadAll(),wkData=all[weekKey(weekOffset)]||{};
-  const headers=['Week','Portfolio','ASIN','Campaign','What changed','Why','Verdict','Check next week','Raw notes','Saved at'];
-  const csvRows=[headers];
-  if(rows.length){rows.forEach(r=>csvRows.push([r.week,r.portfolio,r.asin,r.campaign,r.what_changed,r.why,r.verdict,r.watch_next,r.raw_notes,r.created_at]));}
-  else{Object.entries(wkData).forEach(([name,entry])=>{const p=getPortfolios().find(x=>x.name===name);if(entry.campaigns&&entry.campaigns.length){entry.campaigns.forEach(c=>csvRows.push([wk,name,p?.asin||'',c.campaign,c.what,c.why,c.verdict,c.watch.join(' | '),entry.raw||'',entry.savedAt||'']));}else{csvRows.push([wk,name,p?.asin||'','','','','','',entry.raw||'',entry.savedAt||'']);}});}
-  const csv=csvRows.map(r=>r.map(c=>`"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob=new Blob([csv],{type:'text/csv'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`PPC_Log_${weekKey(weekOffset)}.csv`;a.click();URL.revokeObjectURL(url);
+// ── EXPORT ────────────────────────────────────────────────────────────────
+async function exportCSV() {
+  var wk=weekLabel(weekOffset).replace(/\(.*\)/,'').trim();
+  var rows=await supabaseFetchWeek(wk);
+  var all=loadAll(), wkData=all[weekKey(weekOffset)]||{};
+  var headers=['Week','Portfolio','ASIN','Campaign','What changed','Why','Verdict','Check next week','Raw notes','Saved at'];
+  var csvRows=[headers];
+  if (rows.length) {
+    rows.forEach(function(r){ csvRows.push([r.week,r.portfolio,r.asin,r.campaign,r.what_changed,r.why,r.verdict,r.watch_next,r.raw_notes,r.created_at]); });
+  } else {
+    Object.keys(wkData).forEach(function(name){
+      var entry=wkData[name];
+      var p=getPortfolios().find(function(x){ return x.name===name; });
+      var asin=p?p.asin:'';
+      if (entry.campaigns&&entry.campaigns.length) {
+        entry.campaigns.forEach(function(c){ csvRows.push([wk,name,asin,c.campaign,c.what,c.why,c.verdict,c.watch.join(' | '),entry.raw||'',entry.savedAt||'']); });
+      } else { csvRows.push([wk,name,asin,'','','','','',entry.raw||'',entry.savedAt||'']); }
+    });
+  }
+  var csv=csvRows.map(function(r){ return r.map(function(c){ return '"'+String(c||'').replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
+  var blob=new Blob([csv],{type:'text/csv'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a'); a.href=url; a.download='PPC_Log_'+weekKey(weekOffset)+'.csv'; a.click();
+  URL.revokeObjectURL(url);
 }
 
-function init(){if(!localStorage.getItem(SK_PORTS))savePortfolios(DEFAULT_PORTFOLIOS);renderList();}
-if(sessionStorage.getItem('ppc_auth')==='1'){document.getElementById('login_screen').style.display='none';document.getElementById('app').style.display='flex';init();}
+// ── INIT ──────────────────────────────────────────────────────────────────
+function init() {
+  if (!localStorage.getItem(SK_PORTS)) savePortfolios(DEFAULT_PORTFOLIOS);
+  renderList();
+}
+if (sessionStorage.getItem('ppc_auth')==='1') {
+  document.getElementById('login_screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  init();
+}
+
 </script>
 </body>
 </html>
