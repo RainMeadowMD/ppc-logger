@@ -563,12 +563,93 @@ async function analyseAndSave(){
 }
 
 function renderStrategyTab(){
-  const meta=getPortfolioMeta(selectedName);
-  const roles=['SCALE','PROFIT','DEFEND','LIQUIDATE'];
-  const pills=roles.map(r=>`<button class="role-pill${meta.role===r?' selected':''}" onclick="pickRole('${r}')" id="rp_${r}">${r}</button>`).join('');
-  document.getElementById('tab_content').innerHTML=`<div class="strategy-section"><h3>Role</h3><div class="role-pills">${pills}</div></div><div class="strategy-section"><h3>Target TACoS range</h3><div class="tacos-row"><input type="number" id="tacos_min" value="${meta.tacosMin||''}" placeholder="Min" min="0" max="100" /><span>% to</span><input type="number" id="tacos_max" value="${meta.tacosMax||''}" placeholder="Max" min="0" max="100" /><span>%</span></div></div><div class="strategy-section"><h3>Strategy notes</h3><textarea id="strat_notes" style="min-height:100px;" placeholder="E.g. Hero product — protect rank. Don't cut bids even if ACOS rises short term.">${meta.notes||''}</textarea></div><div class="btn-row"><button class="btn btn-primary" onclick="saveStrategy()">Save strategy</button></div><div class="status" id="strat_status"></div>${meta.role?`<div class="strategy-display" style="margin-top:20px;"><span class="role-badge role-${meta.role}">${meta.role}</span><div style="font-size:13px;color:#3d2e1e;">TACoS target: <strong>${meta.tacosMin||'?'}% – ${meta.tacosMax||'?'}%</strong></div>${meta.notes?`<div style="margin-top:8px;font-size:13px;color:#6b5040;">${meta.notes}</div>`:''}</div>`:''}`;
+  var meta=getPortfolioMeta(selectedName);
+  var tc=document.getElementById('tab_content');
+  var roles=['SCALE','PROFIT','DEFEND','LIQUIDATE'];
+  var html='<div class="strategy-section"><h3>Role</h3><div class="role-pills" id="role_pills">';
+  roles.forEach(function(r){
+    var sel=(meta.role===r)?' selected':'';
+    html+='<button class="role-pill'+sel+'" id="rp_'+r+'" onclick="pickRole(this,\''+r+'\')">'+r+'</button>';
+  });
+  html+='</div></div>';
+  html+='<div class="strategy-section"><h3>Target TACoS range</h3><div class="tacos-row">';
+  html+='<input type="number" id="tacos_min" value="'+(meta.tacosMin||'')+'" placeholder="Min" min="0" max="100" />';
+  html+='<span>% to</span>';
+  html+='<input type="number" id="tacos_max" value="'+(meta.tacosMax||'')+'" placeholder="Max" min="0" max="100" />';
+  html+='<span>%</span></div></div>';
+  html+='<div class="strategy-section"><h3>Strategy notes</h3>';
+  html+='<textarea id="strat_notes" style="min-height:100px;" placeholder="E.g. Hero product — protect rank.">';
+  html+=esc(meta.notes||'');
+  html+='</textarea></div>';
+  html+='<div class="btn-row"><button class="btn btn-primary" onclick="saveStrategy()">Save strategy</button></div>';
+  html+='<div class="status" id="strat_status"></div>';
+  html+='<div style="margin-top:24px;padding-top:20px;border-top:1px solid #e8ddd0;">';
+  html+='<h3 style="font-size:13px;font-weight:600;margin-bottom:8px;color:#3d2e1e;">Arrange with Claude</h3>';
+  html+='<p class="hint" style="margin-bottom:10px;">Paste rough notes about this portfolio. Claude will extract the role, TACoS range, and strategy notes automatically.</p>';
+  html+='<textarea id="strat_dump" style="min-height:100px;" placeholder="E.g. This is my hero product. Scale aggressively. TACoS should stay around 12-15%. BSR is priority over profit."></textarea>';
+  html+='<div class="btn-row"><button class="btn" id="arrange_btn" onclick="arrangeStrategy()">Arrange with Claude</button></div>';
+  html+='<div class="status" id="arrange_status"></div>';
+  html+='</div>';
+  if(meta.role){
+    html+='<div class="strategy-display" style="margin-top:20px;">';
+    html+='<span class="role-badge role-'+meta.role+'">'+meta.role+'</span>';
+    html+='<div style="font-size:13px;color:#3d2e1e;">TACoS target: <strong>'+(meta.tacosMin||'?')+'% - '+(meta.tacosMax||'?')+'%</strong></div>';
+    if(meta.notes) html+='<div style="margin-top:8px;font-size:13px;color:#6b5040;">'+esc(meta.notes)+'</div>';
+    html+='</div>';
+  }
+  tc.innerHTML=html;
 }
-function pickRole(r){['SCALE','PROFIT','DEFEND','LIQUIDATE'].forEach(x=>{document.getElementById('rp_'+x).className='role-pill'+(x===r?' selected':'');});window._pickedRole=r;}
+
+async function arrangeStrategy(){
+  var dump=document.getElementById('strat_dump').value.trim();
+  if(!dump)return;
+  var key=getApiKey();
+  if(!key){alert('Add your Anthropic API key in Settings first.');return;}
+  var btn=document.getElementById('arrange_btn');
+  btn.disabled=true;
+  btn.textContent='Arranging...';
+  var p=getPortfolios().find(function(x){return x.name===selectedName;});
+  var promptText='You are a PPC strategist. Based on these rough notes about the Amazon FBA portfolio '
+    +selectedName+' (ASIN: '+p.asin+'), extract the strategy.'
+    +'\n\nNotes:\n'+dump
+    +'\n\nReturn ONLY valid JSON, no markdown, no backticks:'
+    +'\n{"role":"SCALE or PROFIT or DEFEND or LIQUIDATE","tacosMin":"number only","tacosMax":"number only","notes":"concise 2-3 sentence strategy summary"}'
+    +'\n\nRole guide: SCALE=aggressive growth, PROFIT=maximise margin, DEFEND=protect rank/BSR, LIQUIDATE=clear stock.';
+  try{
+    var res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':key,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:300,messages:[{role:'user',content:promptText}]})
+    });
+    var data=await res.json();
+    if(data.error)throw new Error(data.error.message);
+    var text=data.content.map(function(b){return b.text||'';}).join('').replace(/```json|```/g,'').trim();
+    var parsed=JSON.parse(text);
+    var meta=getPortfolioMeta(selectedName);
+    if(parsed.role)meta.role=parsed.role;
+    if(parsed.tacosMin)meta.tacosMin=parsed.tacosMin;
+    if(parsed.tacosMax)meta.tacosMax=parsed.tacosMax;
+    if(parsed.notes)meta.notes=parsed.notes;
+    setPortfolioMeta(selectedName,meta);
+    renderStrategyTab();
+    setTimeout(function(){
+      var el=document.getElementById('strat_status');
+      if(el){el.textContent='Done. Review and save.';el.className='status ok';}
+    },150);
+  }catch(e){
+    var el=document.getElementById('arrange_status');
+    if(el){el.textContent='Error: '+e.message;el.className='status err';}
+    btn.disabled=false;
+    btn.textContent='Arrange with Claude';
+  }
+}
+
+
 function saveStrategy(){
   const meta=getPortfolioMeta(selectedName);let role=window._pickedRole||meta.role||'';
   ['SCALE','PROFIT','DEFEND','LIQUIDATE'].forEach(r=>{if(document.getElementById('rp_'+r)&&document.getElementById('rp_'+r).classList.contains('selected'))role=r;});
