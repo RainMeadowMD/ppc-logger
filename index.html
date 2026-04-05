@@ -421,7 +421,7 @@ function filterList(val){filterText=val.toLowerCase();renderList();}
 function renderList(){
   const all=loadAll(),wkData=all[weekKey(weekOffset)]||{},ports=getPortfolios();
   const filtered=ports.filter(p=>p.name.toLowerCase().includes(filterText));
-  const sorted=[...filtered.filter(p=>wkData[p.name]),...filtered.filter(p=>!wkData[p.name])];
+  const logged=filtered.filter(p=>wkData[p.name]).sort((a,b)=>a.name.localeCompare(b.name));const unlogged=filtered.filter(p=>!wkData[p.name]).sort((a,b)=>a.name.localeCompare(b.name));const sorted=[...logged,...unlogged];
   document.getElementById('p_list').innerHTML=sorted.map(p=>`<div class="p-item${p.name===selectedName?' active':''}" onclick="selectPortfolio('${p.name}')"><span class="p-name">${p.name}</span><span class="p-dot${wkData[p.name]?' logged':''}"></span></div>`).join('');
   document.getElementById('sidebar_foot').textContent=`${Object.keys(wkData).length} of ${ports.length} logged this week`;
   document.getElementById('wk_label').textContent=weekLabel(weekOffset);
