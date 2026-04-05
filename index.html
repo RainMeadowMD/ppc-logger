@@ -441,16 +441,27 @@ function renderCurrentTab(){if(!selectedName)return;({log:renderLogTab,strategy:
 
 function renderLogTab(){
   const entry=getEntry(selectedName),hasKey=!!getApiKey();
-  const banner=!hasKey?'<div style="background:#fef3cd;border:1px solid #e8c84a;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#7a5c00;">⚠ No API key — analysis disabled. <a style="color:#c9956a;cursor:pointer;text-decoration:underline;" onclick="showSettings()">Settings →</a></div>':'';
+  const noKey='<div style="background:#fef3cd;border:1px solid #e8c84a;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#7a5c00;">No API key — analysis disabled. <a style="color:#c9956a;cursor:pointer;text-decoration:underline;" onclick="showSettings()">Settings</a></div>';
+  const banner=!hasKey?noKey:'';
   if(!entry){
-    document.getElementById('tab_content').innerHTML=banner+'<div class="section-label" style="margin-bottom:8px;">This week's notes</div><textarea id="dump_ta" style="min-height:150px;" placeholder="Speak into Wispr Flow then paste..."></textarea><p class="hint">Mention campaign types as you talk. Claude will use your Instructions tab aliases.</p><div class="btn-row"><button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">Save + analyse</button><button class="btn" onclick="saveRaw()">Just save</button></div><div class="status" id="status_msg"></div>';
+    document.getElementById('tab_content').innerHTML=banner+'<div class="section-label" style="margin-bottom:8px;">This week\'s notes</div>'
+      +'<textarea id="dump_ta" style="min-height:150px;" placeholder="Speak into Wispr Flow then paste. Just talk naturally."></textarea>'
+      +'<p class="hint">Mention campaign types as you talk. Claude will use your Instructions tab aliases.</p>'
+      +'<div class="btn-row"><button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">Save + analyse</button>'
+      +'<button class="btn" onclick="saveRaw()">Just save</button></div>'
+      +'<div class="status" id="status_msg"></div>';
     return;
   }
   if(entry.campaigns&&entry.campaigns.length){
     const saved=entry.savedAt?new Date(entry.savedAt).toLocaleString('en-GB'):'';
-    document.getElementById('tab_content').innerHTML=banner+entry.campaigns.map((c,i)=>campBlockHTML(c,i)).join('')+'<div class="sync-note">Saved '+saved+' · synced to Supabase</div><div class="btn-row" style="margin-top:10px;"><button class="btn" onclick="reEdit()">Edit raw notes</button></div>';
+    let html=banner;
+    entry.campaigns.forEach(function(c,i){html+=campBlockHTML(c,i);});
+    html+='<div class="sync-note">Saved '+saved+' synced to Supabase</div>'
+      +'<div class="btn-row" style="margin-top:10px;"><button class="btn" onclick="reEdit()">Edit raw notes</button></div>';
+    document.getElementById('tab_content').innerHTML=html;
   } else {
-    document.getElementById('tab_content').innerHTML='<div class="raw-note">'+esc(entry.raw)+'</div><div class="btn-row" style="margin-top:12px;"><button class="btn" onclick="reEdit()">Edit / re-log</button></div>';
+    document.getElementById('tab_content').innerHTML='<div class="raw-note">'+esc(entry.raw)+'</div>'
+      +'<div class="btn-row" style="margin-top:12px;"><button class="btn" onclick="reEdit()">Edit / re-log</button></div>';
   }
 }
 
@@ -458,49 +469,61 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
 function escA(s){return String(s||'').replace(/"/g,'&quot;');}
 
 function campBlockHTML(c,i){
-  const vc=c.verdict==='sound'?'v-sound':c.verdict==='risky'?'v-risky':'v-unclear';
+  var vc=c.verdict==='sound'?'v-sound':c.verdict==='risky'?'v-risky':'v-unclear';
+  var watches='';
+  c.watch.forEach(function(w){watches+='<div class="watch-item">'+esc(w)+'</div>';});
   return '<div class="camp-block" id="cb_'+i+'">'
     +'<div class="camp-head"><span class="camp-name">'+esc(c.campaign)+'</span><span class="verdict '+vc+'">'+c.verdict+'</span></div>'
-    +'<div class="camp-body"><div class="camp-what">'+esc(c.what)+'</div><div class="camp-why">'+esc(c.why)+'</div>'
-    +'<div class="watch-label">Check next week</div>'+c.watch.map(w=>'<div class="watch-item">'+esc(w)+'</div>').join('')
-    +'</div><div class="camp-actions"><button class="btn-edit" onclick="editCamp('+i+')">Edit</button></div></div>';
+    +'<div class="camp-body">'
+    +'<div class="camp-what">'+esc(c.what)+'</div>'
+    +'<div class="camp-why">'+esc(c.why)+'</div>'
+    +'<div class="watch-label">Check next week</div>'
+    +watches
+    +'</div>'
+    +'<div class="camp-actions"><button class="btn-edit" onclick="editCamp('+i+')">Edit</button></div>'
+    +'</div>';
 }
 
 function editCamp(i){
-  const entry=getEntry(selectedName);if(!entry||!entry.campaigns)return;
-  const c=entry.campaigns[i];
-  document.getElementById('cb_'+i).innerHTML=
-    '<div class="camp-head" style="gap:8px;flex-wrap:wrap;">'
+  var entry=getEntry(selectedName);if(!entry||!entry.campaigns)return;
+  var c=entry.campaigns[i];
+  var html='<div class="camp-head" style="gap:8px;flex-wrap:wrap;">'
     +'<input class="edit-input" id="ec_name_'+i+'" value="'+escA(c.campaign)+'" placeholder="Campaign name" style="flex:1;min-width:120px;margin:0;" />'
-    +'<select class="verdict-sel" id="ec_v_'+i+'"><option value="sound"'+(c.verdict==='sound'?' selected':'')+'>sound</option><option value="risky"'+(c.verdict==='risky'?' selected':'')+'>risky</option><option value="unclear"'+(c.verdict==='unclear'?' selected':'')+'>unclear</option></select>'
-    +'</div>'
+    +'<select class="verdict-sel" id="ec_v_'+i+'">'
+    +'<option value="sound"'+(c.verdict==='sound'?' selected':'')+'>sound</option>'
+    +'<option value="risky"'+(c.verdict==='risky'?' selected':'')+'>risky</option>'
+    +'<option value="unclear"'+(c.verdict==='unclear'?' selected':'')+'>unclear</option>'
+    +'</select></div>'
     +'<div class="camp-body">'
-    +'<span class="edit-label">What changed</span><input class="edit-input" id="ec_what_'+i+'" value="'+escA(c.what)+'" placeholder="What changed" />'
-    +'<span class="edit-label">Why</span><input class="edit-input" id="ec_why_'+i+'" value="'+escA(c.why)+'" placeholder="Reason" />'
+    +'<span class="edit-label">What changed</span>'
+    +'<input class="edit-input" id="ec_what_'+i+'" value="'+escA(c.what)+'" placeholder="What changed" />'
+    +'<span class="edit-label">Why</span>'
+    +'<input class="edit-input" id="ec_why_'+i+'" value="'+escA(c.why)+'" placeholder="Reason" />'
     +'<span class="edit-label">Check next week (one per line)</span>'
-    +'<textarea class="edit-textarea" id="ec_watch_'+i+'">'+esc(c.watch.join('
-'))+'</textarea>'
+    +'<textarea class="edit-textarea" id="ec_watch_'+i+'">'+esc(c.watch.join('\n'))+'</textarea>'
     +'</div>'
-    +'<div class="camp-actions"><button class="btn-save-camp" onclick="saveCamp('+i+')">Save</button>'
-    +'<button class="btn-cancel-camp" onclick="cancelCamp('+i+')">Cancel</button></div>';
+    +'<div class="camp-actions">'
+    +'<button class="btn-save-camp" onclick="saveCamp('+i+')">Save</button>'
+    +'<button class="btn-cancel-camp" onclick="cancelCamp('+i+')">Cancel</button>'
+    +'</div>';
+  document.getElementById('cb_'+i).innerHTML=html;
 }
 
 function saveCamp(i){
-  const entry=getEntry(selectedName);if(!entry)return;
+  var entry=getEntry(selectedName);if(!entry)return;
   entry.campaigns[i]={
     campaign:document.getElementById('ec_name_'+i).value.trim(),
     what:document.getElementById('ec_what_'+i).value.trim(),
     why:document.getElementById('ec_why_'+i).value.trim(),
     verdict:document.getElementById('ec_v_'+i).value,
-    watch:document.getElementById('ec_watch_'+i).value.split('
-').map(w=>w.trim()).filter(Boolean)
+    watch:document.getElementById('ec_watch_'+i).value.split('\n').map(function(w){return w.trim();}).filter(Boolean)
   };
   setEntry(selectedName,entry);
   document.getElementById('cb_'+i).outerHTML=campBlockHTML(entry.campaigns[i],i);
 }
 
 function cancelCamp(i){
-  const entry=getEntry(selectedName);if(!entry)return;
+  var entry=getEntry(selectedName);if(!entry)return;
   document.getElementById('cb_'+i).outerHTML=campBlockHTML(entry.campaigns[i],i);
 }
 
