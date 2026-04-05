@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PPC Session Logger – RainMeadow</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; }
+
+/* LOGIN */
+#login_screen { display:flex; align-items:center; justify-content:center; height:100vh; }
+.login-card { background:white; border-radius:12px; padding:40px; width:340px; box-shadow:0 2px 16px rgba(0,0,0,0.08); }
+.login-card h1 { font-size:18px; font-weight:600; margin-bottom:6px; }
+.login-card p { font-size:13px; color:#888; margin-bottom:24px; }
+.login-card input { width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:7px; font-size:14px; margin-bottom:10px; outline:none; font-family:inherit; }
+.login-card input:focus { border-color:#1a1a1a; }
+.login-card button { width:100%; padding:10px; background:#1a1a1a; color:white; border:none; border-radius:7px; font-size:14px; font-weight:500; cursor:pointer; }
+.login-err { font-size:12px; color:#ef4444; margin-top:8px; min-height:16px; }
+
+/* APP */
+#app { display:none; flex-direction:column; height:100vh; }
+.topbar { background:#1a1a1a; color:white; padding:10px 20px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; gap:12px; }
+.topbar h1 { font-size:15px; font-weight:500; white-space:nowrap; }
+.week-nav { display:flex; align-items:center; gap:8px; }
+.week-nav button { background:rgba(255,255,255,0.15); border:none; color:white; padding:4px 12px; border-radius:5px; cursor:pointer; font-size:13px; }
+.week-nav button:hover { background:rgba(255,255,255,0.25); }
+.week-nav button:disabled { opacity:0.3; cursor:default; }
+.wk-label { font-size:13px; color:rgba(255,255,255,0.8); min-width:200px; text-align:center; }
+.topbar-actions { display:flex; gap:8px; align-items:center; }
+.tb-btn { padding:6px 14px; border-radius:5px; font-size:13px; font-weight:500; cursor:pointer; border:none; }
+.tb-btn-outline { background:rgba(255,255,255,0.12); color:white; }
+.tb-btn-outline:hover { background:rgba(255,255,255,0.22); }
+.tb-btn-yellow { background:#f0a500; color:#1a1a1a; }
+.tb-btn-yellow:hover { background:#d4920a; }
+
+.app-body { display:flex; flex:1; overflow:hidden; }
+
+/* SIDEBAR */
+.sidebar { width:235px; background:white; border-right:1px solid #e5e5e5; display:flex; flex-direction:column; flex-shrink:0; }
+.search-wrap { padding:10px; border-bottom:1px solid #e5e5e5; display:flex; gap:6px; }
+.search-wrap input { flex:1; padding:6px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px; outline:none; font-family:inherit; }
+.search-wrap input:focus { border-color:#1a1a1a; }
+.add-p-btn { padding:6px 11px; background:#1a1a1a; color:white; border:none; border-radius:6px; font-size:18px; cursor:pointer; line-height:1; }
+.add-p-btn:hover { background:#333; }
+.p-list { flex:1; overflow-y:auto; }
+.p-item { padding:8px 12px; cursor:pointer; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; justify-content:space-between; }
+.p-item:hover { background:#f9f9f9; }
+.p-item.active { background:#f0f0f0; border-left:3px solid #1a1a1a; }
+.p-name { font-size:13px; }
+.p-dot { width:8px; height:8px; border-radius:50%; background:#ddd; flex-shrink:0; }
+.p-dot.logged { background:#22c55e; }
+.sidebar-foot { padding:8px 12px; border-top:1px solid #e5e5e5; font-size:11px; color:#888; }
+
+/* MAIN */
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
+.main-header { padding:12px 20px; border-bottom:1px solid #e5e5e5; background:white; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+.main-header h2 { font-size:16px; font-weight:600; }
+.main-header .asin { font-size:12px; color:#888; margin-top:2px; }
+
+/* TABS */
+.tab-bar { display:flex; border-bottom:1px solid #e5e5e5; background:white; flex-shrink:0; padding:0 20px; }
+.tab-btn { padding:10px 18px; font-size:13px; font-weight:500; border:none; background:none; cursor:pointer; color:#888; border-bottom:2px solid transparent; margin-bottom:-1px; }
+.tab-btn:hover { color:#1a1a1a; }
+.tab-btn.active { color:#1a1a1a; border-bottom-color:#1a1a1a; }
+.tab-content { flex:1; overflow-y:auto; padding:20px; }
+
+/* FORMS */
+textarea { width:100%; font-family:inherit; font-size:14px; line-height:1.7; padding:12px; border:1px solid #ddd; border-radius:8px; resize:vertical; outline:none; color:#1a1a1a; background:white; }
+textarea:focus { border-color:#1a1a1a; }
+.hint { font-size:12px; color:#999; margin-top:6px; line-height:1.5; }
+.section-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:#999; margin-bottom:8px; }
+.btn-row { display:flex; gap:8px; margin-top:12px; }
+.btn { padding:9px 18px; font-size:14px; font-weight:500; border-radius:7px; border:1px solid #ddd; background:white; cursor:pointer; color:#1a1a1a; }
+.btn:hover { background:#f5f5f5; }
+.btn-primary { background:#1a1a1a; color:white; border-color:#1a1a1a; }
+.btn-primary:hover { background:#333; }
+.btn-sm { padding:5px 12px; font-size:12px; border-radius:6px; border:1px solid #ddd; background:white; cursor:pointer; color:#555; }
+.btn-sm:hover { background:#f5f5f5; }
+.btn:disabled { opacity:0.4; cursor:not-allowed; }
+.status { font-size:12px; margin-top:8px; min-height:18px; }
+.status.ok { color:#22c55e; }
+.status.err { color:#ef4444; }
+.status.info { color:#888; }
+
+/* SETUP BANNER */
+.setup-banner { background:#fffbeb; border:1px solid #fcd34d; border-radius:8px; padding:12px 16px; margin-bottom:16px; font-size:13px; color:#92400e; }
+.setup-banner a { color:#d97706; cursor:pointer; text-decoration:underline; }
+
+/* LOG VIEW */
+.camp-block { border:1px solid #e5e5e5; border-radius:8px; margin-bottom:10px; overflow:hidden; }
+.camp-head { background:#f9f9f9; padding:8px 14px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #e5e5e5; }
+.camp-name { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#555; }
+.verdict { font-size:11px; font-weight:600; padding:2px 8px; border-radius:4px; }
+.v-sound { background:#dcfce7; color:#166534; }
+.v-risky { background:#fee2e2; color:#991b1b; }
+.v-unclear { background:#fef9c3; color:#854d0e; }
+.camp-body { padding:10px 14px; }
+.camp-what { font-size:14px; font-weight:500; margin-bottom:3px; }
+.camp-why { font-size:13px; color:#666; margin-bottom:8px; }
+.watch-label { font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:#999; margin-bottom:4px; }
+.watch-item { font-size:13px; padding-left:10px; border-left:2px solid #ddd; margin-bottom:3px; line-height:1.5; }
+
+/* STRATEGY */
+.strategy-section { margin-bottom:20px; }
+.strategy-section h3 { font-size:13px; font-weight:600; margin-bottom:10px; }
+.role-pills { display:flex; gap:8px; flex-wrap:wrap; }
+.role-pill { padding:6px 18px; border-radius:20px; border:1px solid #ddd; font-size:13px; cursor:pointer; background:white; color:#555; }
+.role-pill.selected { background:#1a1a1a; color:white; border-color:#1a1a1a; }
+.tacos-row { display:flex; gap:8px; align-items:center; margin-top:8px; }
+.tacos-row input { width:80px; padding:7px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px; outline:none; font-family:inherit; text-align:center; }
+.tacos-row input:focus { border-color:#1a1a1a; }
+.tacos-row span { font-size:13px; color:#666; }
+.strategy-display { background:#f9f9f9; border:1px solid #e5e5e5; border-radius:8px; padding:14px; margin-top:20px; }
+.role-badge { display:inline-block; padding:3px 12px; border-radius:12px; font-size:12px; font-weight:600; margin-bottom:10px; }
+.role-SCALE    { background:#dbeafe; color:#1e40af; }
+.role-PROFIT   { background:#dcfce7; color:#166534; }
+.role-DEFEND   { background:#fef9c3; color:#854d0e; }
+.role-LIQUIDATE{ background:#fee2e2; color:#991b1b; }
+
+/* INSTRUCTIONS */
+.instruction-row { display:flex; gap:8px; margin-bottom:8px; align-items:center; }
+.instruction-row input { flex:1; padding:8px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px; outline:none; font-family:inherit; }
+.instruction-row input:focus { border-color:#1a1a1a; }
+.del-btn { padding:6px 10px; background:none; border:1px solid #ddd; border-radius:6px; cursor:pointer; font-size:15px; color:#aaa; flex-shrink:0; }
+.del-btn:hover { color:#ef4444; border-color:#ef4444; }
+.arrow-sep { color:#bbb; font-size:14px; flex-shrink:0; }
+.alias-display { background:#f9f9f9; border:1px solid #e5e5e5; border-radius:8px; padding:12px 16px; margin-top:20px; }
+.alias-row { display:flex; gap:8px; padding:5px 0; border-bottom:1px solid #eee; font-size:13px; }
+.alias-row:last-child { border-bottom:none; }
+.alias-key { font-weight:600; min-width:130px; color:#1a1a1a; }
+.alias-val { color:#555; }
+
+/* HISTORY */
+.history-ask { background:white; border:1px solid #e5e5e5; border-radius:10px; padding:16px; margin-bottom:20px; }
+.history-ask h4 { font-size:13px; font-weight:600; margin-bottom:10px; }
+.ask-row { display:flex; gap:8px; }
+.ask-row input { flex:1; padding:9px 12px; border:1px solid #ddd; border-radius:7px; font-size:14px; outline:none; font-family:inherit; }
+.ask-row input:focus { border-color:#1a1a1a; }
+.ask-row button { padding:9px 16px; background:#1a1a1a; color:white; border:none; border-radius:7px; font-size:13px; font-weight:500; cursor:pointer; white-space:nowrap; }
+.ask-response { margin-top:12px; font-size:13px; line-height:1.8; color:#333; background:#f0f9ff; border-radius:7px; padding:12px; }
+.history-week { margin-bottom:18px; }
+.hw-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:#999; margin-bottom:6px; padding-bottom:5px; border-bottom:1px solid #eee; }
+.hw-raw { font-size:13px; color:#444; line-height:1.8; white-space:pre-wrap; background:#f9f9f9; padding:10px 12px; border-radius:6px; }
+.hw-empty { font-size:13px; color:#ccc; font-style:italic; }
+
+/* MODALS */
+.modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); align-items:center; justify-content:center; z-index:100; }
+.modal-bg.open { display:flex; }
+.modal { background:white; border-radius:12px; padding:28px; width:400px; max-height:88vh; overflow-y:auto; }
+.modal h3 { font-size:16px; font-weight:600; margin-bottom:16px; }
+.modal label { font-size:13px; color:#555; display:block; margin-bottom:5px; margin-top:12px; }
+.modal input { width:100%; padding:9px 12px; border:1px solid #ddd; border-radius:6px; font-size:13px; font-family:inherit; outline:none; }
+.modal input:focus { border-color:#1a1a1a; }
+.modal-btns { display:flex; gap:8px; margin-top:16px; }
+
+.no-select { display:flex; align-items:center; justify-content:center; height:200px; color:#aaa; font-size:15px; }
+.sync-note { font-size:11px; color:#aaa; margin-top:10px; }
+.raw-note { font-size:14px; color:#555; line-height:1.8; white-space:pre-wrap; background:#f9f9f9; padding:14px; border-radius:8px; }
+
+.spinner { display:inline-block; width:13px; height:13px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:5px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login_screen">
+  <div class="login-card">
+    <h1>PPC Session Logger</h1>
+    <p>RainMeadow — enter password to continue</p>
+    <input type="password" id="pw_input" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()" />
+    <button onclick="doLogin()">Sign in</button>
+    <div class="login-err" id="login_err"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <h1>🌿 PPC Logger</h1>
+    <div class="week-nav">
+      <button onclick="shiftWeek(-1)">← prev</button>
+      <div class="wk-label" id="wk_label"></div>
+      <button onclick="shiftWeek(1)" id="next_btn">next →</button>
+    </div>
+    <div class="topbar-actions">
+      <button class="tb-btn tb-btn-outline" onclick="exportCSV()">Export CSV</button>
+      <button class="tb-btn tb-btn-yellow" onclick="showSettings()">⚙ Settings</button>
+    </div>
+  </div>
+
+  <div class="app-body">
+    <div class="sidebar">
+      <div class="search-wrap">
+        <input type="text" placeholder="Search portfolios…" oninput="filterList(this.value)" />
+        <button class="add-p-btn" onclick="openAddModal()" title="Add portfolio">+</button>
+      </div>
+      <div class="p-list" id="p_list"></div>
+      <div class="sidebar-foot" id="sidebar_foot"></div>
+    </div>
+
+    <div class="main">
+      <div class="main-header">
+        <div>
+          <h2 id="main_title">Select a portfolio</h2>
+          <div class="asin" id="main_asin"></div>
+        </div>
+      </div>
+      <div class="tab-bar" id="tab_bar" style="display:none;">
+        <button class="tab-btn active" id="t_log"          onclick="setTab('log')">Log</button>
+        <button class="tab-btn"        id="t_strategy"     onclick="setTab('strategy')">Strategy</button>
+        <button class="tab-btn"        id="t_instructions" onclick="setTab('instructions')">Instructions</button>
+        <button class="tab-btn"        id="t_history"      onclick="setTab('history')">History</button>
+      </div>
+      <div class="tab-content" id="tab_content">
+        <div class="no-select">← Pick a portfolio to start</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD PORTFOLIO MODAL -->
+<div class="modal-bg" id="add_modal">
+  <div class="modal">
+    <h3>Add new portfolio</h3>
+    <label>Portfolio name</label>
+    <input type="text" id="new_p_name" placeholder="e.g. UnicornBD-3" />
+    <label>ASIN</label>
+    <input type="text" id="new_p_asin" placeholder="B0XXXXXXXXX" />
+    <div class="modal-btns">
+      <button class="btn btn-primary" onclick="addPortfolio()">Add</button>
+      <button class="btn" onclick="closeModal('add_modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-bg" id="settings_modal">
+  <div class="modal">
+    <h3>Settings</h3>
+    <label>Anthropic API key</label>
+    <input type="password" id="set_api" placeholder="sk-ant-..." />
+    <label>Google Apps Script URL</label>
+    <input type="text" id="set_gsheet" placeholder="https://script.google.com/macros/s/…/exec" />
+    <label>App password</label>
+    <input type="text" id="set_pw" placeholder="rainmeadow2024" />
+    <div class="modal-btns">
+      <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+      <button class="btn" onclick="closeModal('settings_modal')">Cancel</button>
+    </div>
+    <div class="status info" id="settings_status"></div>
+  </div>
+</div>
+
+<script>
+// ── CONSTANTS ──────────────────────────────────────────────────────────────
+const DEFAULT_PW = 'rainmeadow2024';
+const SK_LOG   = 'ppc_log_v5';
+const SK_PORTS = 'ppc_portfolios_v1';
+const SK_META  = 'ppc_meta_v1';
+
+const DEFAULT_PORTFOLIOS = [
+  {name:'UnicornBD-2',asin:'B0F2TRLRXK'},{name:'LuauBD',asin:'B0DP1M3KRL'},
+  {name:'WinnieBSh-2',asin:'B0DQVJ4G19'},{name:'PinkWinnieSet',asin:'B0F9X7CPXC'},
+  {name:'WinnieTW',asin:'B0DQVG9MKQ'},{name:'EngagementSet-2',asin:'B0DQVHGNXF'},
+  {name:'PinkWinnieGarl',asin:'B0F9X9HYBB'},{name:'Berry1stBD',asin:'B0FT8R8T14'},
+  {name:'WinnieBSh',asin:'B0CF43CR8Y'},{name:'MermaidPD-2',asin:'B0FT8T2KBG'},
+  {name:'UnicornBD',asin:'B0C869DZ3Y'},{name:'CarWedding',asin:'B0DQVHKNSZ'},
+  {name:'PinkWinnieTW',asin:'B0G1TM98CX'},{name:'FloralBSh',asin:'B0BQJKJB9F'},
+  {name:'LuauBD-2',asin:'B0FT8TRL9V'},{name:'WoodlandBSh',asin:'B0FT8N1RZS'},
+  {name:'TBearBSh-2',asin:'B0FT8TKS38'},{name:'PinkBridal-2',asin:'B0DPGMVQGQ'},
+  {name:'MermaidPD',asin:'B0C86FL2KG'},{name:'TwinkleGR',asin:'B09KS78P88'},
+  {name:'EngagementSet',asin:'B0BJDWG1K3'},{name:'ButterflyBSh',asin:'B0CZ9JT31N'},
+  {name:'GarlandB-2',asin:'B0D8LFSXPK'},{name:'SageBridal',asin:'B09PF2CTKR'},
+  {name:'GarlandG-2',asin:'B0D7J4ZVBQ'},{name:'BohoBSh',asin:'B0BQJH9PBB'},
+  {name:'SageBSh',asin:'B09PF2JBJT'},{name:'KSpTW',asin:'B07VX7G1T5'},
+  {name:'UnderSeaBD',asin:'B0DQVJG9MQ'},{name:'ColorfulBD',asin:'B0B888QX1K'},
+  {name:'KSpSet',asin:'B07G12YQ3F'},{name:'KSpBanner',asin:'B07CZFPM7R'},
+  {name:'ColorfulBox',asin:'B0BCQT8698'},{name:'TBearTW',asin:'B09P3RRYZC'},
+  {name:'50BD',asin:'B0FHXVVNCV'},{name:'TBearBSh',asin:'B087BSV8SB'},
+  {name:'TBearCP',asin:'B0BZVV4M4D'},{name:'PinkBridal',asin:'B09KS5P2DP'},
+  {name:'JumboGirl',asin:'B085YCQ6KJ'},{name:'JumboBoy',asin:'B085YCQWG2'},
+  {name:'SafariBSh',asin:'B0968LK5ZN'},{name:'80sBD',asin:'B0GGMLFDVY'},
+  {name:'CowboyBSh',asin:'B0GGJFDFYF'}
+];
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let weekOffset   = 0;
+let selectedName = null;
+let currentTab   = 'log';
+let filterText   = '';
+
+// ── AUTH ───────────────────────────────────────────────────────────────────
+function getPassword() { return localStorage.getItem('ppc_password') || DEFAULT_PW; }
+function doLogin() {
+  const pw = document.getElementById('pw_input').value;
+  if (pw === getPassword()) {
+    sessionStorage.setItem('ppc_auth','1');
+    document.getElementById('login_screen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    init();
+  } else {
+    document.getElementById('login_err').textContent = 'Incorrect password.';
+  }
+}
+
+// ── PORTFOLIOS ─────────────────────────────────────────────────────────────
+function getPortfolios() {
+  try { const s=JSON.parse(localStorage.getItem(SK_PORTS)); return s&&s.length?s:DEFAULT_PORTFOLIOS; }
+  catch { return DEFAULT_PORTFOLIOS; }
+}
+function savePortfolios(l) { localStorage.setItem(SK_PORTS,JSON.stringify(l)); }
+
+function openAddModal() {
+  document.getElementById('new_p_name').value='';
+  document.getElementById('new_p_asin').value='';
+  document.getElementById('add_modal').classList.add('open');
+  setTimeout(()=>document.getElementById('new_p_name').focus(),50);
+}
+function addPortfolio() {
+  const name=document.getElementById('new_p_name').value.trim();
+  const asin=document.getElementById('new_p_asin').value.trim();
+  if(!name||!asin) return;
+  const list=getPortfolios();
+  if(list.find(p=>p.name.toLowerCase()===name.toLowerCase())){ alert('Already exists.'); return; }
+  list.push({name,asin}); savePortfolios(list);
+  closeModal('add_modal'); renderList();
+}
+
+// ── META ───────────────────────────────────────────────────────────────────
+function getMeta() { try { return JSON.parse(localStorage.getItem(SK_META)||'{}'); } catch { return {}; } }
+function saveMeta(d) { localStorage.setItem(SK_META,JSON.stringify(d)); }
+function getPortfolioMeta(name) { return getMeta()[name]||{role:'',tacosMin:'',tacosMax:'',notes:'',instructions:[]}; }
+function setPortfolioMeta(name,data) { const m=getMeta(); m[name]=data; saveMeta(m); }
+
+// ── SETTINGS ───────────────────────────────────────────────────────────────
+function getApiKey()   { return localStorage.getItem('ppc_api_key')||''; }
+function getSheetUrl() { return localStorage.getItem('ppc_sheet_url')||''; }
+function showSettings() {
+  document.getElementById('set_api').value    = getApiKey();
+  document.getElementById('set_gsheet').value = getSheetUrl();
+  document.getElementById('set_pw').value     = getPassword();
+  document.getElementById('settings_status').textContent='';
+  document.getElementById('settings_modal').classList.add('open');
+}
+function saveSettings() {
+  const k=document.getElementById('set_api').value.trim();
+  const u=document.getElementById('set_gsheet').value.trim();
+  const p=document.getElementById('set_pw').value.trim();
+  if(k) localStorage.setItem('ppc_api_key',k);
+  if(u) localStorage.setItem('ppc_sheet_url',u);
+  if(p) localStorage.setItem('ppc_password',p);
+  document.getElementById('settings_status').textContent='Saved.';
+  setTimeout(()=>closeModal('settings_modal'),700);
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── WEEK ───────────────────────────────────────────────────────────────────
+function weekStart(off) {
+  const d=new Date(),day=d.getDay();
+  d.setDate(d.getDate()-(day===0?6:day-1)+off*7); d.setHours(0,0,0,0); return d;
+}
+function weekKey(off)   { return weekStart(off).toISOString().slice(0,10); }
+function weekLabel(off) {
+  const d=weekStart(off),e=new Date(d); e.setDate(d.getDate()+6);
+  const f=x=>x.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+  return f(d)+' – '+f(e)+(off===0?' (this week)':off===-1?' (last week)':'');
+}
+function shiftWeek(dir) {
+  weekOffset+=dir; if(weekOffset>0) weekOffset=0;
+  document.getElementById('wk_label').textContent=weekLabel(weekOffset);
+  document.getElementById('next_btn').disabled=weekOffset>=0;
+  renderList();
+  if(selectedName) renderCurrentTab();
+}
+
+// ── STORAGE ────────────────────────────────────────────────────────────────
+function loadAll()          { try { return JSON.parse(localStorage.getItem(SK_LOG)||'{}'); } catch { return {}; } }
+function saveAll(d)         { localStorage.setItem(SK_LOG,JSON.stringify(d)); }
+function getEntry(name)     { return (loadAll()[weekKey(weekOffset)]||{})[name]||null; }
+function setEntry(name,d)   { const all=loadAll(),wk=weekKey(weekOffset); if(!all[wk])all[wk]={}; all[wk][name]=d; saveAll(all); }
+function getAllWeeks(name) {
+  const all=loadAll();
+  return Object.entries(all)
+    .filter(([k,wk])=>wk[name])
+    .sort((a,b)=>b[0].localeCompare(a[0]))
+    .map(([k,wk])=>({key:k,entry:wk[name]}));
+}
+
+// ── SHEET SYNC ─────────────────────────────────────────────────────────────
+async function syncToSheet(pname,asin,entry) {
+  const url=getSheetUrl(); if(!url) return;
+  const wk=weekLabel(weekOffset).replace(/\(.*\)/,'').trim();
+  const rows=[];
+  if(entry.campaigns&&entry.campaigns.length) {
+    entry.campaigns.forEach(c=>rows.push([wk,pname,asin,c.campaign,c.what,c.why,c.verdict,c.watch.join(' | '),(entry.raw||'').replace(/\n/g,' '),entry.savedAt||'']));
+  } else {
+    rows.push([wk,pname,asin,'','','','','',(entry.raw||'').replace(/\n/g,' '),entry.savedAt||'']);
+  }
+  try { await fetch(url,{method:'POST',body:JSON.stringify(rows),headers:{'Content-Type':'application/json'}}); }
+  catch(e){ console.warn('Sheet sync failed:',e); }
+}
+
+// ── LIST ───────────────────────────────────────────────────────────────────
+function filterList(val) { filterText=val.toLowerCase(); renderList(); }
+function renderList() {
+  const all=loadAll(),wkData=all[weekKey(weekOffset)]||{};
+  const ports=getPortfolios();
+  const filtered=ports.filter(p=>p.name.toLowerCase().includes(filterText));
+  const sorted=[...filtered.filter(p=>wkData[p.name]),...filtered.filter(p=>!wkData[p.name])];
+  document.getElementById('p_list').innerHTML=sorted.map(p=>{
+    const active=p.name===selectedName;
+    return `<div class="p-item${active?' active':''}" onclick="selectPortfolio('${p.name}')">
+      <span class="p-name">${p.name}</span>
+      <span class="p-dot${wkData[p.name]?' logged':''}"></span>
+    </div>`;
+  }).join('');
+  document.getElementById('sidebar_foot').textContent=`${Object.keys(wkData).length} of ${ports.length} logged this week`;
+  document.getElementById('wk_label').textContent=weekLabel(weekOffset);
+  document.getElementById('next_btn').disabled=weekOffset>=0;
+}
+
+// ── NAVIGATION ─────────────────────────────────────────────────────────────
+function selectPortfolio(name) {
+  selectedName=name;
+  const p=getPortfolios().find(x=>x.name===name);
+  document.getElementById('main_title').textContent=p.name;
+  document.getElementById('main_asin').textContent=p.asin;
+  document.getElementById('tab_bar').style.display='flex';
+  setTab('log'); renderList();
+}
+function setTab(t) {
+  currentTab=t;
+  ['log','strategy','instructions','history'].forEach(id=>{
+    document.getElementById('t_'+id).className='tab-btn'+(t===id?' active':'');
+  });
+  renderCurrentTab();
+}
+function renderCurrentTab() {
+  if(!selectedName) return;
+  ({log:renderLogTab, strategy:renderStrategyTab, instructions:renderInstructionsTab, history:renderHistoryTab}[currentTab]||renderLogTab)();
+}
+
+// ── LOG TAB ────────────────────────────────────────────────────────────────
+function renderLogTab() {
+  const entry=getEntry(selectedName);
+  const hasKey=!!getApiKey(),hasUrl=!!getSheetUrl();
+  const banner=(!hasKey||!hasUrl)?`<div class="setup-banner">${!hasKey?'⚠ No API key — analysis disabled. ':''} ${!hasUrl?'⚠ No Sheet URL — sync off. ':''}<a onclick="showSettings()">Settings →</a></div>`:'';
+
+  if(!entry) {
+    document.getElementById('tab_content').innerHTML=`${banner}
+      <div class="section-label" style="margin-bottom:8px;">This week's notes</div>
+      <textarea id="dump_ta" style="min-height:150px;" placeholder="Speak into Wispr Flow then paste. Just talk naturally — what you changed, why. No structure needed.
+
+Example: Raised the broad bid from 58 to 68 cents, CVR has been 6% for 30 days. Paused phrase, only 3 orders and 60% ACOS. Bumped budget to $20, keeps running out by noon..."></textarea>
+      <p class="hint">Mention campaign types as you talk. Claude will use your Instructions tab aliases to structure it correctly.</p>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">Save + analyse</button>
+        <button class="btn" onclick="saveRaw()">Just save</button>
+      </div>
+      <div class="status" id="status_msg"></div>`;
+    return;
+  }
+
+  if(entry.campaigns&&entry.campaigns.length) {
+    let html=banner+entry.campaigns.map(c=>{
+      const vc=c.verdict==='sound'?'v-sound':c.verdict==='risky'?'v-risky':'v-unclear';
+      return `<div class="camp-block">
+        <div class="camp-head"><span class="camp-name">${c.campaign}</span><span class="verdict ${vc}">${c.verdict}</span></div>
+        <div class="camp-body">
+          <div class="camp-what">${c.what}</div>
+          <div class="camp-why">${c.why}</div>
+          <div class="watch-label">Check next week</div>
+          ${c.watch.map(w=>`<div class="watch-item">${w}</div>`).join('')}
+        </div>
+      </div>`;
+    }).join('');
+    const saved=entry.savedAt?new Date(entry.savedAt).toLocaleString('en-GB'):'';
+    html+=`<div class="sync-note">Saved ${saved}</div><div class="btn-row" style="margin-top:10px;"><button class="btn" onclick="reEdit()">Edit / re-log</button></div>`;
+    document.getElementById('tab_content').innerHTML=html;
+  } else {
+    document.getElementById('tab_content').innerHTML=`<div class="raw-note">${entry.raw}</div><div class="btn-row" style="margin-top:12px;"><button class="btn" onclick="reEdit()">Edit / re-log</button></div>`;
+  }
+}
+
+function reEdit() {
+  const entry=getEntry(selectedName);
+  const raw=entry?entry.raw:'';
+  const hasKey=!!getApiKey(),hasUrl=!!getSheetUrl();
+  const banner=(!hasKey||!hasUrl)?`<div class="setup-banner">${!hasKey?'⚠ No API key. ':''}<a onclick="showSettings()">Settings →</a></div>`:'';
+  document.getElementById('tab_content').innerHTML=`${banner}
+    <div class="section-label" style="margin-bottom:8px;">Edit notes</div>
+    <textarea id="dump_ta" style="min-height:150px;">${raw}</textarea>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">Save + analyse</button>
+      <button class="btn" onclick="saveRaw()">Just save</button>
+    </div>
+    <div class="status" id="status_msg"></div>`;
+}
+
+function saveRaw() {
+  const raw=document.getElementById('dump_ta').value.trim(); if(!raw) return;
+  const entry={raw,campaigns:null,savedAt:new Date().toISOString()};
+  setEntry(selectedName,entry);
+  const p=getPortfolios().find(x=>x.name===selectedName);
+  syncToSheet(selectedName,p.asin,entry);
+  document.getElementById('status_msg').textContent='Saved.';
+  document.getElementById('status_msg').className='status ok';
+  renderList(); setTimeout(renderLogTab,400);
+}
+
+async function analyseAndSave() {
+  const raw=document.getElementById('dump_ta').value.trim(); if(!raw) return;
+  const key=getApiKey(); if(!key){ saveRaw(); return; }
+  const btn=document.getElementById('save_btn');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Analysing…';
+
+  const p=getPortfolios().find(x=>x.name===selectedName);
+  const meta=getPortfolioMeta(selectedName);
+  const instrText=(meta.instructions&&meta.instructions.length)
+    ?'Campaign aliases:\n'+meta.instructions.map(i=>`- "${i.alias}" = "${i.full}"`).join('\n'):'' ;
+  const stratText=meta.role?`Strategy: Role=${meta.role}, Target TACoS ${meta.tacosMin||'?'}–${meta.tacosMax||'?'}%. ${meta.notes||''}`:'' ;
+
+  const prompt=`Amazon FBA PPC notes for portfolio "${p.name}" (ASIN: ${p.asin}).
+${stratText}
+${instrText}
+
+Voice note:
+"""
+${raw}
+"""
+
+Extract each distinct campaign change. Use alias names when referring to campaigns. Return ONLY valid JSON, no markdown:
+{"campaigns":[{"campaign":"alias or campaign type","what":"one sentence what changed","why":"stated or inferred reason, or not stated","verdict":"sound or risky or unclear","watch":["specific metric to check in 7 days","another specific signal"]}]}
+
+verdict: sound=clear data-driven reason, risky=no data or large change, unclear=vague.
+watch items must be specific e.g. "check if ACOS dropped below 35%" not "monitor performance".`;
+
+  try {
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-opus-4-5',max_tokens:1200,messages:[{role:'user',content:prompt}]})
+    });
+    const data=await res.json();
+    if(data.error) throw new Error(data.error.message);
+    const text=data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim();
+    const parsed=JSON.parse(text);
+    const entry={raw,campaigns:parsed.campaigns,savedAt:new Date().toISOString()};
+    setEntry(selectedName,entry);
+    syncToSheet(selectedName,p.asin,entry);
+    renderList(); renderLogTab();
+  } catch(e) {
+    document.getElementById('status_msg').textContent='Error: '+e.message+' — saved as raw.';
+    document.getElementById('status_msg').className='status err';
+    saveRaw();
+    btn.disabled=false; btn.innerHTML='Save + analyse';
+  }
+}
+
+// ── STRATEGY TAB ───────────────────────────────────────────────────────────
+function renderStrategyTab() {
+  const meta=getPortfolioMeta(selectedName);
+  const roles=['SCALE','PROFIT','DEFEND','LIQUIDATE'];
+  const pills=roles.map(r=>`<button class="role-pill${meta.role===r?' selected':''}" onclick="pickRole('${r}')" id="rp_${r}">${r}</button>`).join('');
+
+  document.getElementById('tab_content').innerHTML=`
+    <div class="strategy-section">
+      <h3>Role</h3>
+      <div class="role-pills">${pills}</div>
+    </div>
+    <div class="strategy-section">
+      <h3>Target TACoS range</h3>
+      <div class="tacos-row">
+        <input type="number" id="tacos_min" value="${meta.tacosMin||''}" placeholder="Min" min="0" max="100" />
+        <span>% to</span>
+        <input type="number" id="tacos_max" value="${meta.tacosMax||''}" placeholder="Max" min="0" max="100" />
+        <span>%</span>
+      </div>
+    </div>
+    <div class="strategy-section">
+      <h3>Strategy notes</h3>
+      <textarea id="strat_notes" style="min-height:100px;" placeholder="E.g. Hero product — protect rank above all. Don't cut bids even if ACOS rises short term. Priority is BSR below 500.">${meta.notes||''}</textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveStrategy()">Save strategy</button>
+    </div>
+    <div class="status" id="strat_status"></div>
+    ${meta.role?`<div class="strategy-display" style="margin-top:20px;">
+      <span class="role-badge role-${meta.role}">${meta.role}</span>
+      <div style="font-size:13px;">TACoS target: <strong>${meta.tacosMin||'?'}% – ${meta.tacosMax||'?'}%</strong></div>
+      ${meta.notes?`<div style="margin-top:8px;font-size:13px;color:#555;">${meta.notes}</div>`:''}
+    </div>`:''}`;
+}
+
+function pickRole(r) {
+  ['SCALE','PROFIT','DEFEND','LIQUIDATE'].forEach(x=>{ document.getElementById('rp_'+x).className='role-pill'+(x===r?' selected':''); });
+  window._pickedRole=r;
+}
+
+function saveStrategy() {
+  const meta=getPortfolioMeta(selectedName);
+  let role=window._pickedRole||meta.role||'';
+  ['SCALE','PROFIT','DEFEND','LIQUIDATE'].forEach(r=>{ if(document.getElementById('rp_'+r)&&document.getElementById('rp_'+r).classList.contains('selected')) role=r; });
+  meta.role=role;
+  meta.tacosMin=document.getElementById('tacos_min').value;
+  meta.tacosMax=document.getElementById('tacos_max').value;
+  meta.notes=document.getElementById('strat_notes').value.trim();
+  setPortfolioMeta(selectedName,meta);
+  document.getElementById('strat_status').textContent='Strategy saved.';
+  document.getElementById('strat_status').className='status ok';
+  setTimeout(renderStrategyTab,600);
+}
+
+// ── INSTRUCTIONS TAB ───────────────────────────────────────────────────────
+function renderInstructionsTab() {
+  const meta=getPortfolioMeta(selectedName);
+  const instrs=meta.instructions||[];
+
+  const rows=instrs.map((item,i)=>`
+    <div class="instruction-row">
+      <input type="text" id="alias_${i}" value="${item.alias||''}" placeholder="Short name (e.g. Campaign 1)" />
+      <span class="arrow-sep">→</span>
+      <input type="text" id="full_${i}"  value="${item.full||''}"  placeholder="Full campaign name" />
+      <button class="del-btn" onclick="deleteAlias(${i})">×</button>
+    </div>`).join('');
+
+  const display=instrs.length?`<div class="alias-display" style="margin-top:20px;">
+    ${instrs.map(i=>`<div class="alias-row"><span class="alias-key">${i.alias}</span><span class="arrow-sep" style="margin:0 8px;">→</span><span class="alias-val">${i.full}</span></div>`).join('')}
+  </div>`:'';
+
+  document.getElementById('tab_content').innerHTML=`
+    <div class="section-label" style="margin-bottom:6px;">Campaign aliases</div>
+    <p class="hint" style="margin-bottom:14px;">Give short names to long campaign names. Claude will use these when structuring your log entries and answering history questions.</p>
+    <div id="alias_list">${rows}</div>
+    <button class="btn-sm" style="margin-top:8px;" onclick="addAliasRow()">+ Add alias</button>
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn btn-primary" onclick="saveInstructions()">Save</button>
+    </div>
+    <div class="status" id="instr_status"></div>
+    ${display}`;
+}
+
+function addAliasRow() {
+  const meta=getPortfolioMeta(selectedName);
+  if(!meta.instructions) meta.instructions=[];
+  meta.instructions.push({alias:'',full:''});
+  setPortfolioMeta(selectedName,meta);
+  renderInstructionsTab();
+  setTimeout(()=>{ const els=document.querySelectorAll('[id^="alias_"]'); if(els.length) els[els.length-1].focus(); },50);
+}
+
+function deleteAlias(idx) {
+  const meta=getPortfolioMeta(selectedName);
+  meta.instructions.splice(idx,1);
+  setPortfolioMeta(selectedName,meta);
+  renderInstructionsTab();
+}
+
+function saveInstructions() {
+  const meta=getPortfolioMeta(selectedName);
+  const instrs=[];
+  let i=0;
+  while(document.getElementById('alias_'+i)) {
+    const a=document.getElementById('alias_'+i).value.trim();
+    const f=document.getElementById('full_'+i).value.trim();
+    if(a||f) instrs.push({alias:a,full:f});
+    i++;
+  }
+  meta.instructions=instrs;
+  setPortfolioMeta(selectedName,meta);
+  document.getElementById('instr_status').textContent='Saved.';
+  document.getElementById('instr_status').className='status ok';
+  setTimeout(renderInstructionsTab,600);
+}
+
+// ── HISTORY TAB ────────────────────────────────────────────────────────────
+function renderHistoryTab() {
+  const weeks=getAllWeeks(selectedName);
+
+  const weekRows=weeks.length?weeks.map(({key,entry})=>{
+    const d=new Date(key);
+    const label=d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+    const preview=entry.raw?(entry.raw.length>350?entry.raw.slice(0,350)+'…':entry.raw):'No raw notes saved.';
+    return `<div class="history-week">
+      <div class="hw-label">w/c ${label}</div>
+      <div class="hw-raw">${preview}</div>
+    </div>`;
+  }).join(''):'<div class="hw-empty">No history yet for this portfolio.</div>';
+
+  document.getElementById('tab_content').innerHTML=`
+    <div class="history-ask">
+      <h4>Ask Claude about this portfolio's history</h4>
+      <div class="ask-row">
+        <input type="text" id="history_q" placeholder="e.g. Give me all changes to Campaign 1 · What was my ACOS trend · When did I last pause a campaign?" onkeydown="if(event.key==='Enter')askHistory()" />
+        <button onclick="askHistory()">Ask ↗</button>
+      </div>
+      <div id="ask_response" style="display:none;" class="ask-response"></div>
+    </div>
+    <div class="section-label" style="margin-bottom:10px;">All weeks — raw notes</div>
+    ${weekRows}`;
+}
+
+async function askHistory() {
+  const q=document.getElementById('history_q').value.trim(); if(!q) return;
+  const key=getApiKey();
+  if(!key){ alert('Add your Anthropic API key in Settings first.'); return; }
+
+  const responseEl=document.getElementById('ask_response');
+  responseEl.style.display='block';
+  responseEl.textContent='Thinking…';
+
+  const weeks=getAllWeeks(selectedName);
+  const meta=getPortfolioMeta(selectedName);
+  const instrText=(meta.instructions&&meta.instructions.length)
+    ?'\nCampaign aliases:\n'+meta.instructions.map(i=>`- "${i.alias}" = "${i.full}"`).join('\n'):'';
+
+  const historyText=weeks.map(({key,entry})=>{
+    const d=new Date(key).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+    const structured=entry.campaigns&&entry.campaigns.length
+      ?entry.campaigns.map(c=>`  [${c.campaign}] ${c.what} | Why: ${c.why} | Verdict: ${c.verdict}`).join('\n'):'';
+    return `Week of ${d}:\n${structured||'  Notes: '+(entry.raw||'').slice(0,300)}`;
+  }).join('\n\n');
+
+  const prompt=`You are a PPC analyst reviewing the full history of portfolio "${selectedName}".${instrText}
+
+Full history:
+${historyText||'No history recorded yet.'}
+
+User question: ${q}
+
+Answer directly and specifically. Reference specific weeks. Be concise and practical.`;
+
+  try {
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-opus-4-5',max_tokens:600,messages:[{role:'user',content:prompt}]})
+    });
+    const data=await res.json();
+    if(data.error) throw new Error(data.error.message);
+    const text=data.content.map(b=>b.text||'').join('');
+    responseEl.innerHTML=text.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
+  } catch(e) { responseEl.textContent='Error: '+e.message; }
+}
+
+// ── EXPORT ─────────────────────────────────────────────────────────────────
+function exportCSV() {
+  const all=loadAll(),wkData=all[weekKey(weekOffset)]||{};
+  const rows=[['Week','Portfolio','ASIN','Campaign','What changed','Why','Verdict','Check next week','Raw notes','Saved at']];
+  const wk=weekLabel(weekOffset).replace(/\(.*\)/,'').trim();
+  Object.entries(wkData).forEach(([name,entry])=>{
+    const p=getPortfolios().find(x=>x.name===name);
+    const asin=p?p.asin:'';
+    if(entry.campaigns&&entry.campaigns.length) {
+      entry.campaigns.forEach(c=>rows.push([wk,name,asin,c.campaign,c.what,c.why,c.verdict,c.watch.join(' | '),(entry.raw||'').replace(/\n/g,' '),entry.savedAt||'']));
+    } else {
+      rows.push([wk,name,asin,'','','','','',(entry.raw||'').replace(/\n/g,' '),entry.savedAt||'']);
+    }
+  });
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=`PPC_Log_${weekKey(weekOffset)}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+function init() {
+  if(!localStorage.getItem(SK_PORTS)) savePortfolios(DEFAULT_PORTFOLIOS);
+  renderList();
+}
+if(sessionStorage.getItem('ppc_auth')==='1') {
+  document.getElementById('login_screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  init();
+}
+</script>
+</body>
+</html>
