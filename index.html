@@ -846,17 +846,11 @@ function campBlockHTML(c, i) {
   var editBtn = isAdmin()
     ? '<button class="btn-edit" onclick="editCamp(' + i + ')" style="font-size:10px;padding:1px 8px;">Edit</button>'
     : '';
-  var watchLine = '';
-  if (c.watch && c.watch.length) {
-    watchLine = '<div style="font-size:10px;color:#9c836a;padding:3px 12px 4px;border-top:1px solid #f0e8df;background:#fdf8f3;">'
-      + '<span style="font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-right:4px;">Check:</span>'
-      + c.watch.map(function(w){return esc(w);}).join(' &thinsp;&#183;&thinsp; ')
-      + '</div>';
-  }
+  var watchLine = ''; // watch items removed from display
   return '<div class="camp-block" id="cb_' + i + '" style="border:1px solid #e8ddd0;border-radius:7px;margin-bottom:6px;overflow:hidden;background:#fffdf9;">'
     // Header: name + badge + edit — compact
     + '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 12px;background:#f5ece2;border-bottom:1px solid #e8ddd0;">'
-    + '<span style="font-size:12px;font-weight:700;color:#3d2e1e;">' + esc(c.campaign) + '</span>'
+    + '<span style="font-size:12px;font-weight:700;color:#3d2e1e;">' + esc(c.campaign) + ':</span>'
     + '<div style="display:flex;align-items:center;gap:6px;">'
     + '<span class="user-badge" style="width:18px;height:18px;font-size:9px;">' + esc(savedBy) + '</span>'
     + editBtn
@@ -892,8 +886,7 @@ function editCamp(i) {
     + '<input class="edit-input" id="ec_what_' + i + '" value="' + escA(c.what) + '" style="margin-bottom:6px;" />'
     + '<span class="edit-label">Why</span>'
     + '<input class="edit-input" id="ec_why_' + i + '" value="' + escA(c.why) + '" style="margin-bottom:6px;" />'
-    + '<span class="edit-label">Check next week (one per line)</span>'
-    + '<textarea class="edit-textarea" id="ec_watch_' + i + '">' + esc((c.watch||[]).join('\n')) + '</textarea>'
+
     + '<div style="display:flex;gap:8px;margin-top:8px;">'
     + '<button class="btn-save-camp" onclick="saveCamp(' + i + ')">Save</button>'
     + '<button class="btn-cancel-camp" onclick="cancelCamp(' + i + ')">Cancel</button>'
@@ -910,7 +903,7 @@ function saveCamp(i) {
     what:     document.getElementById('ec_what_' + i).value.trim(),
     why:      document.getElementById('ec_why_'  + i).value.trim(),
     rank:     document.getElementById('ec_rank_' + i).value.trim(),
-    watch:    document.getElementById('ec_watch_'+ i).value.split('\n').map(function(w){return w.trim();}).filter(Boolean),
+    watch:    [],
     savedBy:  entry.campaigns[i].savedBy || '?'
   };
   setEntry(selectedName, entry);
@@ -965,7 +958,14 @@ async function analyseAndSave() {
   var cu   = getCurrentUser();
   var instrText = meta.instructionNotes ? 'Portfolio instructions: ' + meta.instructionNotes : '';
   var stratText = meta.role ? 'Strategy: Role=' + meta.role + ', Target TACoS ' + (meta.tacosMin||'?') + '-' + (meta.tacosMax||'?') + '%. ' + (meta.notes||'') : '';
-  var promptText = 'Amazon FBA PPC notes for portfolio "' + p.name + '" (ASIN: ' + p.asin + '). ' + stratText + ' ' + instrText + ' Voice note: ' + raw + ' Return ONLY valid JSON, no markdown: {"snapshot":"If the user mentions overall product health, profitability, organic share, or general situation, write 1-2 sentences summarising it. Otherwise return empty string.","campaigns":[{"campaign":"campaign name","what":"one sentence what changed","why":"stated or inferred reason","rank":"organic rank number if mentioned or empty string","watch":["specific check in 7 days"]}]}. rank: extract organic rank if mentioned, otherwise empty string.';
+  var promptText = 'Amazon FBA PPC notes for portfolio "' + p.name + '" (ASIN: ' + p.asin + '). ' + stratText + ' ' + instrText
+    + ' Voice note: ' + raw
+    + ' Return ONLY valid JSON, no markdown, no explanation.'
+    + ' {"snapshot":"1-2 sentences only if user mentions overall product health, profitability, or organic share. Otherwise empty string.",'
+    + '"campaigns":[{"campaign":"exact campaign name from notes","what":"ultra-terse change description using these rules: if before+after values exist write them as from X to Y (e.g. bid $0.40 to $0.70, budget $35 to $45). If only after value write increased/decreased to X. Drop words like increased/raised/adjusted when amounts are clear. Max 12 words.","why":"terse reason, max 10 words, no filler","rank":"organic rank number only if mentioned, else empty string","watch":[]}]}'
+    + ' IMPORTANT: watch array must always be empty []. Campaign name must match exactly what user said.'
+    + ' what field examples: bid $0.40 to $0.70; budget $35 to $45; TOS bid $0.25 to $0.75; bid increased to $0.65; paused broad campaign'
+    + ' why field examples: rank 301 PPC tool KRT shows 70 need impressions; CVR 8% justifies higher bid; performing well week of March 29';
   try {
     var res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
