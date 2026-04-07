@@ -224,6 +224,7 @@ textarea:focus { border-color:#c9956a; }
 .btn-cancel-camp { font-size:12px; padding:5px 12px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#5a4230; cursor:pointer; }
 
 
+:root { --log-font:13px; --log-font-sm:10px; --sidebar-font:13px; --content-font:13px; }
 .camp-block { border:1px solid #e8ddd0; border-radius:7px; margin-bottom:5px; overflow:hidden; background:#fffdf9; }
 .btn-edit { font-size:10px; padding:1px 8px; border:1px solid #ddd2c4; border-radius:4px; background:#fffdf9; color:#5a4230; cursor:pointer; }
 .btn-edit:hover { background:#f5ece2; }
@@ -241,7 +242,12 @@ textarea:focus { border-color:#c9956a; }
 .settings-section { margin-top:16px; padding-top:14px; border-top:1px solid #e8ddd0; }
 .settings-section h4 { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:#9c836a; margin-bottom:10px; }
 .ideas-modal-inner { max-width:700px; width:95vw; }
-.tab-content { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; }
+.disp-section { margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid #f0e8df; }
+.disp-section:last-of-type { border-bottom:none; }
+.disp-section-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:#9c836a; margin-bottom:8px; }
+.disp-row { display:flex; align-items:center; justify-content:space-between; padding:6px 0; font-size:13px; color:#3d2e1e; }
+.disp-radio-group { display:flex; gap:14px; }
+.disp-radio-group label { font-size:13px; cursor:pointer; display:flex; align-items:center; gap:4px; }
 </style>
 </head>
 <body>
@@ -269,9 +275,11 @@ textarea:focus { border-color:#c9956a; }
     <div class="topbar-actions">
       <span id="current_user_label" style="font-size:13px;color:rgba(255,253,249,0.8);display:flex;align-items:center;gap:6px;"></span>
       <span class="sync-indicator" id="sync_indicator"></span>
-      <button id="ideas_btn"    class="tb-btn tb-btn-outline" onclick="showIdeasBank()" style="display:none;">Ideas Bank</button>
-      <button id="export_btn"   class="tb-btn tb-btn-outline" onclick="exportCSV()"    style="display:none;">Export CSV</button>
-      <button id="settings_btn" class="tb-btn tb-btn-accent"  onclick="showSettings()" style="display:none;">Settings</button>
+      <button id="ideas_btn"    class="tb-btn tb-btn-outline" onclick="showIdeasBank()"        style="display:none;">Ideas Bank</button>
+      <button id="upload_btn"   class="tb-btn tb-btn-outline" onclick="triggerHistoryUpload()" style="display:none;">Upload History</button>
+      <button id="export_btn"   class="tb-btn tb-btn-outline" onclick="exportCSV()"            style="display:none;">Export CSV</button>
+      <button                   class="tb-btn tb-btn-outline" onclick="showDisplayPanel()">Display</button>
+      <button id="settings_btn" class="tb-btn tb-btn-accent"  onclick="showSettings()"         style="display:none;">Settings</button>
     </div>
   </div>
   <div class="app-body">
@@ -303,6 +311,10 @@ textarea:focus { border-color:#c9956a; }
     </div>
   </div>
 </div>
+
+<input type="file" id="history_file_input" accept=".csv" style="display:none;" onchange="handleHistoryUpload(this)" />
+
+<!-- ADD PORTFOLIO MODAL -->
 <div class="modal-bg" id="add_modal">
   <div class="modal">
     <h3>Add new portfolio</h3>
@@ -316,6 +328,8 @@ textarea:focus { border-color:#c9956a; }
     </div>
   </div>
 </div>
+
+<!-- SETTINGS MODAL -->
 <div class="modal-bg" id="settings_modal">
   <div class="modal" style="width:460px;">
     <h3>Settings</h3>
@@ -342,6 +356,49 @@ textarea:focus { border-color:#c9956a; }
     </div>
   </div>
 </div>
+
+<!-- DISPLAY SETTINGS MODAL -->
+<div class="modal-bg" id="display_modal">
+  <div class="modal" style="width:360px;">
+    <h3>Display settings</h3>
+    <div class="disp-section">
+      <div class="disp-section-label">Campaign cards font size</div>
+      <div class="disp-radio-group">
+        <label><input type="radio" name="disp_cardFont" id="disp_cardFont_small"  value="small">Small</label>
+        <label><input type="radio" name="disp_cardFont" id="disp_cardFont_medium" value="medium">Medium</label>
+        <label><input type="radio" name="disp_cardFont" id="disp_cardFont_large"  value="large">Large</label>
+      </div>
+    </div>
+    <div class="disp-section">
+      <div class="disp-section-label">Sidebar portfolio list font size</div>
+      <div class="disp-radio-group">
+        <label><input type="radio" name="disp_sidebarFont" id="disp_sidebarFont_small"  value="small">Small</label>
+        <label><input type="radio" name="disp_sidebarFont" id="disp_sidebarFont_medium" value="medium">Medium</label>
+        <label><input type="radio" name="disp_sidebarFont" id="disp_sidebarFont_large"  value="large">Large</label>
+      </div>
+    </div>
+    <div class="disp-section">
+      <div class="disp-section-label">Tab content font size</div>
+      <div class="disp-radio-group">
+        <label><input type="radio" name="disp_contentFont" id="disp_contentFont_small"  value="small">Small</label>
+        <label><input type="radio" name="disp_contentFont" id="disp_contentFont_medium" value="medium">Medium</label>
+        <label><input type="radio" name="disp_contentFont" id="disp_contentFont_large"  value="large">Large</label>
+      </div>
+    </div>
+    <div class="disp-section">
+      <div class="disp-section-label">Show / hide rows in cards</div>
+      <div class="disp-row"><span>Why row</span><input type="checkbox" id="disp_why"  style="width:18px;height:18px;cursor:pointer;" /></div>
+      <div class="disp-row"><span>Rank row</span><input type="checkbox" id="disp_rank" style="width:18px;height:18px;cursor:pointer;" /></div>
+      <div class="disp-row"><span>Product snapshot</span><input type="checkbox" id="disp_snap" style="width:18px;height:18px;cursor:pointer;" /></div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn btn-primary" onclick="saveDisplayPanel()">Apply</button>
+      <button class="btn" onclick="closeModal('display_modal')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- IDEAS BANK MODAL -->
 <div class="modal-bg" id="ideas_modal">
   <div class="modal ideas-modal-inner" style="max-height:90vh;overflow-y:auto;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
@@ -369,6 +426,7 @@ textarea:focus { border-color:#c9956a; }
     <div id="ideas_list"></div>
   </div>
 </div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   var pwInput = document.getElementById('pw_input');
@@ -561,6 +619,7 @@ function addPortfolio() {
   list.sort(function(a, b) { return a.name.localeCompare(b.name); });
   savePortfolios(list);
   closeModal('add_modal');
+  applyDisplaySettings();
   renderList();
 }
 
@@ -931,6 +990,7 @@ function attachReminderDoneListeners() {
 }
 
 function campBlockHTML(c, i) {
+  var ds = getDisplaySettings();
   var savedBy = c.savedBy || '?';
   var what    = c.what  || '';
   var why     = c.why   || '';
@@ -1489,6 +1549,198 @@ async function exportCSV() {
 // INIT
 // =========================================================================
 
+// =========================================================================
+// DISPLAY SETTINGS
+// =========================================================================
+
+function getDisplaySettings() {
+  try {
+    var d = JSON.parse(localStorage.getItem('ppc_display') || 'null');
+    if (d) return d;
+  } catch(e) {}
+  return {
+    cardFont:    'medium',
+    sidebarFont: 'medium',
+    contentFont: 'medium',
+    showWhy:     true,
+    showRank:    true,
+    showSnapshot:true
+  };
+}
+function saveDisplaySettings(d) {
+  localStorage.setItem('ppc_display', JSON.stringify(d));
+}
+function applyDisplaySettings() {
+  var d = getDisplaySettings();
+  var sz = {small:'11px', medium:'13px', large:'15px'};
+  var sm = {small:'9px',  medium:'10px', large:'12px'};
+  document.documentElement.style.setProperty('--log-font',     sz[d.cardFont]    || '13px');
+  document.documentElement.style.setProperty('--log-font-sm',  sm[d.cardFont]    || '10px');
+  document.documentElement.style.setProperty('--sidebar-font', sz[d.sidebarFont] || '13px');
+  document.documentElement.style.setProperty('--content-font', sz[d.contentFont] || '13px');
+  // Apply sidebar font
+  var sidebar = document.querySelector('.p-list');
+  if (sidebar) sidebar.style.fontSize = sz[d.sidebarFont] || '13px';
+  // Apply tab content font (non-card areas)
+  var tc = document.getElementById('tab_content');
+  if (tc) tc.style.fontSize = sz[d.contentFont] || '13px';
+}
+function showDisplayPanel() {
+  var d = getDisplaySettings();
+  var fields = ['cardFont','sidebarFont','contentFont'];
+  fields.forEach(function(f) {
+    var el = document.getElementById('disp_'+f+'_'+d[f]);
+    if (el) el.checked = true;
+  });
+  document.getElementById('disp_why').checked      = d.showWhy;
+  document.getElementById('disp_rank').checked     = d.showRank;
+  document.getElementById('disp_snap').checked     = d.showSnapshot;
+  document.getElementById('display_modal').classList.add('open');
+}
+function saveDisplayPanel() {
+  var d = getDisplaySettings();
+  ['cardFont','sidebarFont','contentFont'].forEach(function(f) {
+    var el = document.querySelector('input[name="disp_'+f+'"]:checked');
+    if (el) d[f] = el.value;
+  });
+  d.showWhy      = document.getElementById('disp_why').checked;
+  d.showRank     = document.getElementById('disp_rank').checked;
+  d.showSnapshot = document.getElementById('disp_snap').checked;
+  saveDisplaySettings(d);
+  applyDisplaySettings();
+  closeModal('display_modal');
+  if (selectedName) renderCurrentTab();
+}
+
+// =========================================================================
+// UPLOAD HISTORY (admin only)
+// =========================================================================
+
+function triggerHistoryUpload() {
+  if (!isAdmin()) return;
+  document.getElementById('history_file_input').click();
+}
+
+async function handleHistoryUpload(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var text = await file.text();
+  var lines = text.split('\n');
+  if (!lines.length) return;
+
+  // Parse CSV header
+  var headers = parseCSVLine(lines[0]);
+  var weekIdx    = headers.indexOf('Week');
+  var portIdx    = headers.indexOf('Portfolio');
+  var asinIdx    = headers.indexOf('ASIN');
+  var campIdx    = headers.indexOf('Campaign');
+  var whatIdx    = headers.indexOf('What changed');
+  var whyIdx     = headers.indexOf('Why');
+  var rankIdx    = headers.indexOf('rank');
+  if (rankIdx === -1) rankIdx = headers.indexOf('Rank');
+  var watchIdx   = headers.indexOf('Check next week');
+  var rawIdx     = headers.indexOf('Raw notes');
+  var savedAtIdx = headers.indexOf('Saved at');
+
+  var imported = 0;
+  var byPortWk = {}; // portfolio+week -> {entry}
+
+  for (var i = 1; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+    var cols = parseCSVLine(line);
+    var wk     = cols[weekIdx]    || '';
+    var port   = cols[portIdx]    || '';
+    var camp   = cols[campIdx]    || '';
+    var what   = cols[whatIdx]    || '';
+    var why    = cols[whyIdx]     || '';
+    var rank   = rankIdx >= 0 ? (cols[rankIdx]  || '') : '';
+    var watch  = watchIdx >= 0 ? (cols[watchIdx] || '') : '';
+    var raw    = cols[rawIdx]     || '';
+    var savedAt= savedAtIdx >= 0 ? (cols[savedAtIdx] || '') : '';
+    var asin   = cols[asinIdx]    || '';
+    if (!port || !wk) continue;
+
+    // Group by portfolio+week
+    var key = port + '||' + wk;
+    if (!byPortWk[key]) byPortWk[key] = {wk:wk, port:port, asin:asin, raw:raw, savedAt:savedAt, campaigns:[]};
+    if (camp) {
+      byPortWk[key].campaigns.push({
+        campaign: camp,
+        what:     what,
+        why:      why,
+        rank:     rank,
+        watch:    watch ? watch.split(' | ') : [],
+        savedBy:  'D'
+      });
+    }
+    if (raw && !byPortWk[key].raw) byPortWk[key].raw = raw;
+  }
+
+  // Write to localStorage
+  var all = loadAll();
+  Object.keys(byPortWk).forEach(function(key) {
+    var entry = byPortWk[key];
+    // Find the weekKey (ISO date) that matches this week label
+    // Try to find existing or create a best-guess key
+    var wkDate = entry.savedAt ? new Date(entry.savedAt) : null;
+    var wkKey  = wkDate && !isNaN(wkDate) ? wkDate.toISOString().slice(0,10) : entry.wk.slice(0,10);
+    if (!all[wkKey]) all[wkKey] = {};
+    all[wkKey][entry.port] = {
+      raw:       entry.raw,
+      snapshot:  '',
+      campaigns: entry.campaigns,
+      savedAt:   entry.savedAt || new Date().toISOString(),
+      savedBy:   'D'
+    };
+    imported++;
+  });
+  saveAll(all);
+
+  // Also push to Supabase
+  var keys = Object.keys(byPortWk);
+  for (var k = 0; k < keys.length; k++) {
+    var entry = byPortWk[keys[k]];
+    for (var j = 0; j < entry.campaigns.length; j++) {
+      var c = entry.campaigns[j];
+      await supabaseInsert({
+        week:        entry.wk,
+        portfolio:   entry.port,
+        asin:        entry.asin,
+        campaign:    c.campaign,
+        what_changed:c.what,
+        why:         c.why,
+        rank:        c.rank,
+        verdict:     '',
+        watch_next:  c.watch.join(' | '),
+        raw_notes:   entry.raw
+      });
+    }
+  }
+
+  input.value = '';
+  alert('Imported ' + imported + ' week entries. Reload the page to see them.');
+  renderList();
+}
+
+function parseCSVLine(line) {
+  var result = [], cur = '', inQ = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (ch === ',' && !inQ) {
+      result.push(cur); cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  result.push(cur);
+  return result;
+}
+
+
 function init() {
   if (!localStorage.getItem(SK_PORTS)) savePortfolios(DEFAULT_PORTFOLIOS);
   if (!localStorage.getItem('ppc_users')) saveUsers([{name:'Dorin', password:'rainmeadow2024', role:'admin', initial:'D'}]);
@@ -1505,6 +1757,8 @@ function init() {
   var exportBtn   = document.getElementById('export_btn');
   var settingsBtn = document.getElementById('settings_btn');
   var ideasBtn    = document.getElementById('ideas_btn');
+  var uploadBtn = document.getElementById('upload_btn');
+  if (uploadBtn) uploadBtn.style.display = admin ? '' : 'none';
   if (exportBtn)   exportBtn.style.display   = admin ? '' : 'none';
   if (settingsBtn) settingsBtn.style.display = admin ? '' : 'none';
   if (ideasBtn)    ideasBtn.style.display    = admin ? '' : 'none';
