@@ -224,17 +224,17 @@ textarea:focus { border-color:#c9956a; }
 .btn-cancel-camp { font-size:12px; padding:5px 12px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#5a4230; cursor:pointer; }
 
 
-.camp-block { border:1px solid #e8ddd0; border-radius:8px; margin-bottom:10px; overflow:hidden; background:#fffdf9; }
-.btn-edit { font-size:11px; padding:2px 10px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#5a4230; cursor:pointer; }
+.camp-block { border:1px solid #e8ddd0; border-radius:7px; margin-bottom:6px; overflow:hidden; background:#fffdf9; }
+.btn-edit { font-size:10px; padding:1px 8px; border:1px solid #ddd2c4; border-radius:4px; background:#fffdf9; color:#5a4230; cursor:pointer; }
 .btn-edit:hover { background:#f5ece2; }
-.edit-label { font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:#9c836a; margin:8px 0 3px; display:block; }
-.edit-input { width:100%; font-family:inherit; font-size:13px; padding:7px 9px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#3d2e1e; outline:none; margin-bottom:2px; box-sizing:border-box; }
+.edit-label { font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:#9c836a; margin:6px 0 2px; display:block; }
+.edit-input { width:100%; font-family:inherit; font-size:13px; padding:6px 9px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#3d2e1e; outline:none; margin-bottom:2px; box-sizing:border-box; }
 .edit-input:focus { border-color:#c9956a; }
-.edit-textarea { width:100%; font-family:inherit; font-size:13px; padding:7px 9px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#3d2e1e; outline:none; resize:vertical; min-height:60px; box-sizing:border-box; }
+.edit-textarea { width:100%; font-family:inherit; font-size:13px; padding:6px 9px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#3d2e1e; outline:none; resize:vertical; min-height:55px; box-sizing:border-box; }
 .edit-textarea:focus { border-color:#c9956a; }
-.btn-save-camp { font-size:12px; padding:5px 14px; background:#3d2e1e; color:#fffdf9; border:none; border-radius:5px; cursor:pointer; }
+.btn-save-camp { font-size:12px; padding:4px 14px; background:#3d2e1e; color:#fffdf9; border:none; border-radius:5px; cursor:pointer; }
 .btn-save-camp:hover { background:#5a4230; }
-.btn-cancel-camp { font-size:12px; padding:5px 12px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#5a4230; cursor:pointer; }
+.btn-cancel-camp { font-size:12px; padding:4px 12px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#5a4230; cursor:pointer; }
 .sync-indicator { font-size:11px; color:rgba(255,253,249,0.5); }
 .sync-indicator.synced { color:#a8d5b5; }
 .user-badge { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:#c9956a; color:#fffdf9; font-size:11px; font-weight:700; flex-shrink:0; }
@@ -844,31 +844,36 @@ function campBlockHTML(c, i) {
   var why     = c.why   || '';
   var rank    = c.rank  || '';
   var editBtn = isAdmin()
-    ? '<button class="btn-edit" onclick="editCamp(' + i + ')" style="font-size:11px;padding:2px 10px;">Edit</button>'
+    ? '<button class="btn-edit" onclick="editCamp(' + i + ')" style="font-size:10px;padding:1px 8px;">Edit</button>'
     : '';
-  var checkLine = '';
+  var watchLine = '';
   if (c.watch && c.watch.length) {
-    checkLine = '<div style="display:flex;gap:6px;align-items:baseline;padding:5px 0;border-top:1px solid #f0e8df;">'
-      + '<span style="font-size:11px;font-weight:600;color:#9c836a;text-transform:uppercase;letter-spacing:0.05em;flex-shrink:0;">Check:</span>'
-      + '<span style="font-size:12px;color:#9c836a;">' + c.watch.map(function(w){return esc(w);}).join(' &nbsp;&#183;&nbsp; ') + '</span>'
+    watchLine = '<div style="font-size:10px;color:#9c836a;padding:3px 12px 4px;border-top:1px solid #f0e8df;background:#fdf8f3;">'
+      + '<span style="font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-right:4px;">Check:</span>'
+      + c.watch.map(function(w){return esc(w);}).join(' &thinsp;&#183;&thinsp; ')
       + '</div>';
   }
-  return '<div class="camp-block" id="cb_' + i + '" style="border:1px solid #e8ddd0;border-radius:8px;margin-bottom:10px;overflow:hidden;background:#fffdf9;">'
-    // Header row: campaign name + user badge + edit
-    + '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px 8px;background:#f5ece2;border-bottom:1px solid #e8ddd0;">'
-    + '<span style="font-size:13px;font-weight:700;color:#3d2e1e;">' + esc(c.campaign) + '</span>'
-    + '<div style="display:flex;align-items:center;gap:8px;">'
-    + '<span class="user-badge" style="width:20px;height:20px;font-size:10px;">' + esc(savedBy) + '</span>'
+  return '<div class="camp-block" id="cb_' + i + '" style="border:1px solid #e8ddd0;border-radius:7px;margin-bottom:6px;overflow:hidden;background:#fffdf9;">'
+    // Header: name + badge + edit — compact
+    + '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 12px;background:#f5ece2;border-bottom:1px solid #e8ddd0;">'
+    + '<span style="font-size:12px;font-weight:700;color:#3d2e1e;">' + esc(c.campaign) + '</span>'
+    + '<div style="display:flex;align-items:center;gap:6px;">'
+    + '<span class="user-badge" style="width:18px;height:18px;font-size:9px;">' + esc(savedBy) + '</span>'
     + editBtn
+    + '</div></div>'
+    // Rows: all on tight lines
+    + '<div style="padding:4px 12px 4px;">'
+    + (what ? '<div style="display:flex;gap:6px;padding:2px 0;align-items:baseline;">'
+        + '<span style="font-size:9px;font-weight:700;color:#b0956a;text-transform:uppercase;letter-spacing:0.05em;width:46px;flex-shrink:0;">Change</span>'
+        + '<span style="font-size:12px;color:#3d2e1e;line-height:1.4;">' + esc(what) + '</span></div>' : '')
+    + (rank ? '<div style="display:flex;gap:6px;padding:2px 0;align-items:baseline;">'
+        + '<span style="font-size:9px;font-weight:700;color:#b0956a;text-transform:uppercase;letter-spacing:0.05em;width:46px;flex-shrink:0;">Rank</span>'
+        + '<span style="font-size:12px;font-weight:600;color:#5a7a5a;">' + esc(rank) + '</span></div>' : '')
+    + (why  ? '<div style="display:flex;gap:6px;padding:2px 0;align-items:baseline;">'
+        + '<span style="font-size:9px;font-weight:700;color:#b0956a;text-transform:uppercase;letter-spacing:0.05em;width:46px;flex-shrink:0;">Why</span>'
+        + '<span style="font-size:12px;color:#6b5040;line-height:1.4;">' + esc(why) + '</span></div>' : '')
     + '</div>'
-    + '</div>'
-    // Body rows
-    + '<div style="padding:8px 14px 6px;">'
-    + (what ? '<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #f5efe6;align-items:baseline;"><span style="font-size:11px;font-weight:600;color:#9c836a;text-transform:uppercase;letter-spacing:0.05em;width:60px;flex-shrink:0;">Change</span><span style="font-size:13px;color:#3d2e1e;line-height:1.5;">' + esc(what) + '</span></div>' : '')
-    + (rank ? '<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #f5efe6;align-items:baseline;"><span style="font-size:11px;font-weight:600;color:#9c836a;text-transform:uppercase;letter-spacing:0.05em;width:60px;flex-shrink:0;">Rank</span><span style="font-size:13px;font-weight:600;color:#5a7a5a;">' + esc(rank) + '</span></div>' : '')
-    + (why  ? '<div style="display:flex;gap:8px;padding:4px 0;' + (checkLine ? 'border-bottom:1px solid #f5efe6;' : '') + 'align-items:baseline;"><span style="font-size:11px;font-weight:600;color:#9c836a;text-transform:uppercase;letter-spacing:0.05em;width:60px;flex-shrink:0;">Why</span><span style="font-size:13px;color:#6b5040;line-height:1.5;">' + esc(why) + '</span></div>' : '')
-    + checkLine
-    + '</div>'
+    + watchLine
     + '</div>';
 }
 
