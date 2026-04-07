@@ -224,7 +224,7 @@ textarea:focus { border-color:#c9956a; }
 .btn-cancel-camp { font-size:12px; padding:5px 12px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#5a4230; cursor:pointer; }
 
 
-.camp-block { border:1px solid #e8ddd0; border-radius:7px; margin-bottom:6px; overflow:hidden; background:#fffdf9; }
+.camp-block { border:1px solid #e8ddd0; border-radius:7px; margin-bottom:5px; overflow:hidden; background:#fffdf9; }
 .btn-edit { font-size:10px; padding:1px 8px; border:1px solid #ddd2c4; border-radius:4px; background:#fffdf9; color:#5a4230; cursor:pointer; }
 .btn-edit:hover { background:#f5ece2; }
 .edit-label { font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:#9c836a; margin:6px 0 2px; display:block; }
@@ -241,6 +241,7 @@ textarea:focus { border-color:#c9956a; }
 .settings-section { margin-top:16px; padding-top:14px; border-top:1px solid #e8ddd0; }
 .settings-section h4 { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:#9c836a; margin-bottom:10px; }
 .ideas-modal-inner { max-width:700px; width:95vw; }
+.tab-content { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; }
 </style>
 </head>
 <body>
@@ -293,7 +294,7 @@ textarea:focus { border-color:#c9956a; }
         <button class="tab-btn active" id="t_log"          onclick="setTab('log')">Log</button>
         <button class="tab-btn"        id="t_strategy"     onclick="setTab('strategy')">PPC Strategy</button>
         <button class="tab-btn"        id="t_instructions" onclick="setTab('instructions')">Instructions</button>
-        <button class="tab-btn"        id="t_history"      onclick="setTab('history')">History</button>
+        <button class="tab-btn"        id="t_ai"           onclick="setTab('ai')">AI</button>
         <button class="tab-btn"        id="t_pideas"       onclick="setTab('pideas')">Ideas</button>
       </div>
       <div class="tab-content" id="tab_content">
@@ -741,7 +742,7 @@ function selectPortfolio(name) {
 
 function setTab(t) {
   currentTab = t;
-  ['log','strategy','instructions','history','pideas'].forEach(function(id) {
+  ['log','strategy','instructions','ai','pideas'].forEach(function(id) {
     document.getElementById('t_' + id).className = 'tab-btn' + (t === id ? ' active' : '');
   });
   renderCurrentTab();
@@ -749,7 +750,7 @@ function setTab(t) {
 
 function renderCurrentTab() {
   if (!selectedName) return;
-  var map = {log: renderLogTab, strategy: renderStrategyTab, instructions: renderInstructionsTab, history: renderHistoryTab, pideas: renderPortfolioIdeasTab};
+  var map = {log: renderLogTab, strategy: renderStrategyTab, instructions: renderInstructionsTab, ai: renderAITab, pideas: renderPortfolioIdeasTab};
   if (map[currentTab]) map[currentTab]();
 }
 
@@ -757,78 +758,169 @@ function renderCurrentTab() {
 // LOG TAB
 // =========================================================================
 
-function renderLogTab() {
-  var entry  = getEntry(selectedName);
+async function renderLogTab() {
   var hasKey = !!getApiKey();
   var admin  = isAdmin();
   var cu     = getCurrentUser();
+  var p      = getPortfolios().find(function(x){ return x.name === selectedName; });
 
-  var banner = !hasKey
-    ? '<div style="background:#fef3cd;border:1px solid #e8c84a;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#7a5c00;">No API key  -  analysis disabled. ' + (admin ? '<a style="color:#c9956a;cursor:pointer;text-decoration:underline;" onclick="showSettings()">Settings</a>' : 'Ask admin to add it.') + '</div>'
-    : '';
+  // Show loading state
+  document.getElementById('tab_content').innerHTML = '<div style="font-size:13px;color:#9c836a;padding:20px 0;">Loading logs...</div>';
 
-  // Check for pending reminders
+  // Fetch ALL history from Supabase
+  var allRows = await supabaseFetchHistory(selectedName);
+
+  // Also load local storage for all weeks
+  var allLocal = loadAll();
+
+  // Build map of weekKey -> local entry
+  var localByWeek = {};
+  Object.keys(allLocal).forEach(function(wkKey) {
+    if (allLocal[wkKey][selectedName]) {
+      localByWeek[wkKey] = allLocal[wkKey][selectedName];
+    }
+  });
+
+  // Build week list from Supabase rows (deduplicated)
+  var supaWeeks = {};
+  var seen = {};
+  allRows.forEach(function(r) {
+    var key = (r.week||'') + '|' + (r.campaign||'');
+    if (seen[key]) return;
+    seen[key] = true;
+    if (!supaWeeks[r.week]) supaWeeks[r.week] = [];
+    supaWeeks[r.week].push(r);
+  });
+
+  // Sort weeks oldest first (chronological, so newest is at bottom)
+  var supaWeekKeys = Object.keys(supaWeeks).sort(function(a,b){ return a.localeCompare(b); });
+
+  // Current week key and label
+  var curWkKey   = weekKey(weekOffset);
+  var curWkLabel = weekLabel(weekOffset).replace(/\(.*\)/,'').trim();
+  var curEntry   = localByWeek[curWkKey] || null;
+
+  // Reminders banner
   var reminders = getReminders(selectedName);
   var reminderBanner = '';
   if (reminders.length) {
-    reminderBanner = '<div style="background:#f0ece4;border:1px solid #ddd2c4;border-radius:8px;padding:12px 16px;margin-bottom:16px;">'
-      + '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#9c836a;margin-bottom:6px;">Reminders</div>';
+    reminderBanner = '<div style="background:#f0ece4;border:1px solid #ddd2c4;border-radius:8px;padding:9px 14px;margin-bottom:12px;">'
+      + '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#9c836a;margin-bottom:4px;">Reminders</div>';
     reminders.forEach(function(r, i) {
-      reminderBanner += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;color:#3d2e1e;">'
-        + '<span style="color:#c9956a;">&#8226;</span> ' + esc(r.text)
-        + '<button data-ridx="' + i + '" class="del-rem-btn" style="margin-left:auto;font-size:11px;padding:2px 7px;border:1px solid #ddd2c4;border-radius:4px;background:#fffdf9;color:#b05030;cursor:pointer;">Done</button>'
+      reminderBanner += '<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#3d2e1e;padding:2px 0;">'
+        + '<span style="color:#c9956a;">&#8226;</span>' + esc(r.text)
+        + '<button data-ridx="'+i+'" class="del-rem-btn" style="margin-left:auto;font-size:10px;padding:1px 6px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;color:#b05030;cursor:pointer;">Done</button>'
         + '</div>';
     });
     reminderBanner += '</div>';
   }
 
-  if (!entry) {
-    document.getElementById('tab_content').innerHTML = reminderBanner + banner
-      + '<div class="section-label" style="margin-bottom:8px;">This week\'s notes</div>'
-      + '<textarea id="dump_ta" style="min-height:150px;" placeholder="Speak into Wispr Flow then paste. Just talk naturally."></textarea>'
-      + '<p class="hint">Mention campaign types as you talk. Claude will use your Instructions for context.</p>'
-      + '<div class="btn-row"><button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">Save + analyse</button>'
-      + '<button class="btn" onclick="saveRaw()">Just save</button></div>'
-      + '<div class="status" id="status_msg"></div>'
-      + tasksHTML();
-    attachReminderDoneListeners();
-    attachTaskListeners();
-    return;
-  }
+  var html = reminderBanner;
 
-  if (entry.campaigns && entry.campaigns.length) {
-    var saved = entry.savedAt ? new Date(entry.savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-    var html = reminderBanner + banner;
-    if (entry.snapshot && entry.snapshot.trim()) {
-      html += '<div style="background:#f0ece4;border-left:3px solid #c9956a;border-radius:0 6px 6px 0;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#5a4230;line-height:1.6;">'
-        + '<span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#9c836a;display:block;margin-bottom:3px;">Product snapshot</span>'
-        + esc(entry.snapshot)
-        + '</div>';
+  // ── Past weeks (oldest at top, newest below input) ──────────────────
+  supaWeekKeys.forEach(function(wk) {
+    // Skip current week - shown separately at bottom
+    if (wk === curWkLabel || supaWeeks[wk][0] && supaWeeks[wk][0].week === curWkLabel) return;
+
+    var entries = supaWeeks[wk];
+    var wkLabelDisplay = entries[0] ? entries[0].week : wk;
+    var savedAt = entries[0] ? entries[0].created_at : '';
+    var dateStr = savedAt ? new Date(savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}) : wkLabelDisplay;
+
+    html += '<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:2px solid #f0e8df;">';
+    html += '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#9c836a;margin-bottom:8px;">Logged '+esc(dateStr)+'</div>';
+
+    // Snapshot if stored locally
+    var localEntry = null;
+    Object.keys(localByWeek).forEach(function(lk){
+      var le = localByWeek[lk];
+      if (le && le.savedAt) {
+        var leDate = new Date(le.savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+        if (leDate === dateStr && le.snapshot) localEntry = le;
+      }
+    });
+    if (localEntry && localEntry.snapshot) {
+      html += '<div style="background:#f0ece4;border-left:3px solid #c9956a;border-radius:0 6px 6px 0;padding:7px 12px;margin-bottom:8px;font-size:12px;color:#5a4230;line-height:1.5;">'
+        + '<span style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#9c836a;display:block;margin-bottom:2px;">Snapshot</span>'
+        + esc(localEntry.snapshot) + '</div>';
     }
-    // Sort campaigns numerically by the number in parentheses e.g. (1), (2)
-    var sorted = entry.campaigns.map(function(c,i){return {c:c,i:i};});
-    sorted.sort(function(a,b){
-      var na = parseInt((a.c.campaign.match(/\((\d+)\)/)||[0,999])[1]);
-      var nb = parseInt((b.c.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+
+    // Sort campaigns by number
+    var sorted = entries.slice().sort(function(a,b){
+      var na = parseInt((a.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+      var nb = parseInt((b.campaign.match(/\((\d+)\)/)||[0,999])[1]);
       return na - nb;
     });
-    sorted.forEach(function(item){ html += campBlockHTML(item.c, item.i); });
-    var dateStr = entry.savedAt ? new Date(entry.savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}) : '';
-    html += '<div style="font-size:11px;color:#9c836a;margin-bottom:10px;padding:4px 0;border-bottom:1px solid #f0e8df;">Logged ' + dateStr + '</div>';
-    if (admin) {
-      html += '<div class="btn-row" style="margin-top:10px;"><button class="btn" onclick="reEdit()">Edit raw notes</button></div>';
+    sorted.forEach(function(r) {
+      if (!r.campaign || !r.campaign.trim()) return;
+      html += histCompactCard(r);
+    });
+    html += '</div>';
+  });
+
+  // ── Current week ─────────────────────────────────────────────────────
+  html += '<div id="current_week_section">';
+  html += '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#c9956a;margin-bottom:8px;">This week</div>';
+
+  if (!curEntry) {
+    // Input form
+    var noKeyBanner = !hasKey ? '<div style="background:#fef3cd;border:1px solid #e8c84a;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#7a5c00;">No API key. ' + (admin ? '<a style="color:#c9956a;cursor:pointer;text-decoration:underline;" onclick="showSettings()">Add in Settings</a>' : 'Ask admin.') + '</div>' : '';
+    html += noKeyBanner
+      + '<textarea id="dump_ta" style="min-height:110px;" placeholder="Paste voice notes here. Claude will use your Instructions tab for context."></textarea>'
+      + '<div class="btn-row" style="margin-top:8px;"><button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">Save + analyse</button>'
+      + '<button class="btn" onclick="saveRaw()">Just save</button></div>'
+      + '<div class="status" id="status_msg"></div>';
+  } else if (curEntry.campaigns && curEntry.campaigns.length) {
+    var savedDate = curEntry.savedAt ? new Date(curEntry.savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}) : '';
+    html += '<div style="font-size:10px;color:#9c836a;margin-bottom:8px;">Logged '+esc(savedDate)+'</div>';
+
+    if (curEntry.snapshot && curEntry.snapshot.trim()) {
+      html += '<div style="background:#f0ece4;border-left:3px solid #c9956a;border-radius:0 6px 6px 0;padding:7px 12px;margin-bottom:10px;font-size:12px;color:#5a4230;line-height:1.5;">'
+        + '<span style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#9c836a;display:block;margin-bottom:2px;">Snapshot</span>'
+        + esc(curEntry.snapshot) + '</div>';
     }
-    html += tasksHTML();
-    document.getElementById('tab_content').innerHTML = html;
+
+    var sortedCur = curEntry.campaigns.map(function(c,i){return{c:c,i:i};});
+    sortedCur.sort(function(a,b){
+      var na = parseInt((a.c.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+      var nb = parseInt((b.c.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+      return na-nb;
+    });
+    sortedCur.forEach(function(item){ html += campBlockHTML(item.c, item.i); });
+
+    if (admin) {
+      html += '<div class="btn-row" style="margin-top:8px;"><button class="btn" onclick="reEdit()">Edit raw notes</button></div>';
+    }
   } else {
-    document.getElementById('tab_content').innerHTML = reminderBanner
-      + '<div class="raw-note">' + esc(entry.raw) + '</div>'
-      + (admin ? '<div class="btn-row" style="margin-top:12px;"><button class="btn" onclick="reEdit()">Edit / re-log</button></div>' : '')
-      + tasksHTML();
+    html += '<div class="raw-note">'+esc(curEntry.raw)+'</div>';
+    if (admin) html += '<div class="btn-row" style="margin-top:8px;"><button class="btn" onclick="reEdit()">Edit / re-log</button></div>';
   }
+  html += '</div>';
+
+  // Tasks section
+  html += tasksHTML();
+
+  document.getElementById('tab_content').innerHTML = html;
   attachReminderDoneListeners();
   attachTaskListeners();
 }
+
+function histCompactCard(r) {
+  var what = r.what_changed || '';
+  var why  = r.why          || '';
+  var rank = r.rank         || '';
+  var card = '<div style="border:1px solid #e8ddd0;border-radius:7px;margin-bottom:5px;overflow:hidden;background:#fffdf9;">';
+  card += '<div style="padding:4px 12px;background:#f5ece2;border-bottom:1px solid #e8ddd0;">';
+  card += '<span style="font-size:12px;font-weight:700;color:#3d2e1e;">' + esc(r.campaign) + ':</span>';
+  card += '</div>';
+  card += '<div style="padding:3px 12px 5px;">';
+  if (what) card += '<div style="display:flex;gap:6px;padding:2px 0;align-items:baseline;"><span style="font-size:9px;font-weight:700;color:#b0956a;text-transform:uppercase;letter-spacing:0.05em;width:46px;flex-shrink:0;">Change</span><span style="font-size:12px;color:#3d2e1e;line-height:1.4;">'+esc(what)+'</span></div>';
+  if (rank) card += '<div style="display:flex;gap:6px;padding:2px 0;align-items:baseline;"><span style="font-size:9px;font-weight:700;color:#b0956a;text-transform:uppercase;letter-spacing:0.05em;width:46px;flex-shrink:0;">Rank</span><span style="font-size:12px;font-weight:600;color:#5a7a5a;">'+esc(rank)+'</span></div>';
+  if (why)  card += '<div style="display:flex;gap:6px;padding:2px 0;align-items:baseline;"><span style="font-size:9px;font-weight:700;color:#b0956a;text-transform:uppercase;letter-spacing:0.05em;width:46px;flex-shrink:0;">Why</span><span style="font-size:12px;color:#6b5040;line-height:1.4;">'+esc(why)+'</span></div>';
+  card += '</div></div>';
+  return card;
+}
+
 
 function attachReminderDoneListeners() {
   document.querySelectorAll('.del-rem-btn').forEach(function(btn) {
@@ -1225,141 +1317,136 @@ function saveInstructions() {
 // HISTORY TAB
 // =========================================================================
 
-async function renderHistoryTab() {
-  document.getElementById('tab_content').innerHTML = '<div style="font-size:13px;color:#9c836a;padding:20px 0;">Loading history...</div>';
-  var rows  = await supabaseFetchHistory(selectedName);
-  var admin = isAdmin();
+// =========================================================================
+// AI CHAT TAB
+// =========================================================================
 
-  // Group by week
-  // Group by week, deduplicate campaigns within each week
-  var byWeek = {};
-  var seen = {};
-  rows.forEach(function(r) {
-    var key = (r.week||'') + '|' + (r.campaign||'');
-    if (seen[key]) return; // skip duplicate campaign entries for same week
-    seen[key] = true;
-    if (!byWeek[r.week]) byWeek[r.week] = [];
-    byWeek[r.week].push(r);
-  });
-  var weeks = Object.keys(byWeek).sort(function(a,b) { return b.localeCompare(a); });
+var _aiChatHistory = []; // persists within session per portfolio
+var _aiPortfolio   = null;
 
-  var weekRows = weeks.length ? weeks.map(function(wk) {
-    var entries = byWeek[wk];
-    var ids     = entries.map(function(r) { return r.id; }).join(',');
-    var safeWk  = wk.replace(/[^a-z0-9]/gi, '_');
-    var delBtn  = admin
-      ? '<button data-wk="' + escA(wk) + '" data-ids="' + escA(ids) + '" class="del-week-btn" style="font-size:11px;padding:2px 8px;border:1px solid #ddd2c4;border-radius:4px;background:#fffdf9;color:#b05030;cursor:pointer;">Delete</button>'
-      : '';
+function renderAITab() {
+  // Reset chat if switching portfolios
+  if (_aiPortfolio !== selectedName) {
+    _aiChatHistory = [];
+    _aiPortfolio   = selectedName;
+  }
 
-    // Build compact campaign rows — filter out blank campaign entries (raw-only saves)
-    var campEntries = entries.filter(function(r) { return r.campaign && r.campaign.trim(); });
+  var html = '<div style="display:flex;flex-direction:column;height:100%;min-height:400px;">';
 
-    var campRows = '';
-    if (campEntries.length) {
-      campRows = '<table style="width:100%;border-collapse:collapse;margin-top:6px;">';
-      campEntries.forEach(function(r) {
-        var what = r.what_changed || '';
-        // Truncate what to ~60 chars
-        if (what.length > 65) what = what.slice(0, 62) + '...';
-        var why   = r.why || '';
-        var rank  = r.rank || '';
-        if (why.length  > 55) why  = why.slice( 0, 52) + '...';
-        campRows += '<tr style="border-bottom:1px solid #f0e8df;">'
-          + '<td style="padding:5px 8px 5px 0;font-size:12px;font-weight:600;color:#5a4230;white-space:nowrap;width:22%;vertical-align:top;">' + esc(r.campaign) + '</td>'
-          + '<td style="padding:5px 8px;font-size:12px;color:#3d2e1e;vertical-align:top;width:32%;">' + esc(what) + '</td>'
-          + '<td style="padding:5px 8px;font-size:12px;color:#6b5040;font-style:italic;vertical-align:top;width:32%;">' + esc(why) + '</td>'
-          + (rank ? '<td style="padding:5px 0 5px 8px;white-space:nowrap;vertical-align:top;width:14%;"><span style="font-size:11px;color:#5a7a5a;background:#e8f4e8;padding:2px 7px;border-radius:10px;">rank ' + esc(rank) + '</span></td>' : '<td></td>')
-          + '</tr>';
-      });
-      campRows += '</table>';
-    } else {
-      // Raw-only save: show truncated raw
-      var raw = entries[0] ? (entries[0].raw_notes || '') : '';
-      var preview = raw.length > 120 ? raw.slice(0, 117) + '...' : raw;
-      campRows = '<div style="font-size:12px;color:#9c836a;font-style:italic;margin-top:4px;">' + esc(preview) + '</div>';
-    }
-
-    return '<div class="history-week" id="hw_' + safeWk + '" style="margin-bottom:12px;border:1px solid #e8ddd0;border-radius:8px;overflow:hidden;">'
-      + '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f5ece2;border-bottom:1px solid #e8ddd0;">'
-      + '<span style="font-size:12px;font-weight:600;color:#5a4230;">' + esc(wk) + '</span>'
-      + delBtn
-      + '</div>'
-      + '<div style="padding:6px 12px 10px;">' + campRows + '</div>'
-      + '</div>';
-  }).join('') : '<div style="font-size:13px;color:#b0a090;font-style:italic;">No history yet.</div>';
-
-  document.getElementById('tab_content').innerHTML =
-    '<div class="history-ask"><h4>Ask Claude about this portfolio history</h4>'
-    + '<div class="ask-row"><input type="text" id="history_q" placeholder="e.g. When did I last pause a campaign? What was my ACOS trend?" />'
-    + '<button onclick="askHistory()">Ask</button></div>'
-    + '<div id="ask_response" style="display:none;" class="ask-response"></div></div>'
-    + '<div class="section-label" style="margin-bottom:10px;">All weeks</div>'
-    + weekRows;
-
-  document.querySelectorAll('.del-week-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      deleteHistoryWeek(this.getAttribute('data-wk'), this.getAttribute('data-ids'));
-    });
-  });
-
-  window._historyRows = rows;
-}
-
-async function deleteHistoryWeek(wk, idsStr) {
-  if (!isAdmin()) return;
-  if (!confirm('Delete the log for ' + wk + '?\nThis cannot be undone.')) return;
-  var ids = idsStr.split(',').filter(Boolean);
-  for (var i = 0; i < ids.length; i++) { await supabaseDeleteRow(ids[i]); }
-  var all = loadAll();
-  Object.keys(all).forEach(function(wkKey) {
-    if (all[wkKey] && all[wkKey][selectedName]) {
-      var d = new Date(wkKey), e = new Date(d);
-      e.setDate(d.getDate() + 6);
-      var f = function(x) { return x.toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}); };
-      var label = f(d) + ' - ' + f(e);
-      if (label === wk || (label + ' (this week)') === wk || (label + ' (last week)') === wk) {
-        delete all[wkKey][selectedName];
+  // Chat messages area
+  html += '<div id="ai_messages" style="flex:1;overflow-y:auto;padding:8px 0;margin-bottom:12px;">';
+  if (!_aiChatHistory.length) {
+    html += '<div style="font-size:13px;color:#b0a090;font-style:italic;padding:8px 0;">Ask anything about this portfolio — campaign evolution, trends, what changed, what to do next.</div>';
+  } else {
+    _aiChatHistory.forEach(function(msg) {
+      if (msg.role === 'user') {
+        html += '<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">'
+          + '<div style="background:#3d2e1e;color:#fffdf9;border-radius:12px 12px 2px 12px;padding:8px 14px;font-size:13px;max-width:80%;line-height:1.5;">'+esc(msg.content)+'</div>'
+          + '</div>';
+      } else {
+        html += '<div style="display:flex;justify-content:flex-start;margin-bottom:8px;">'
+          + '<div style="background:#f0ece4;border:1px solid #e8ddd0;border-radius:12px 12px 12px 2px;padding:8px 14px;font-size:13px;color:#3d2e1e;max-width:85%;line-height:1.6;">'
+          + msg.content.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>')
+          + '</div></div>';
       }
-    }
+    });
+  }
+  html += '</div>';
+
+  // Input row
+  html += '<div style="display:flex;gap:8px;align-items:flex-end;">';
+  html += '<textarea id="ai_input" style="flex:1;min-height:44px;max-height:120px;resize:vertical;font-size:13px;" placeholder="Ask Claude about this portfolio..."></textarea>';
+  html += '<div style="display:flex;flex-direction:column;gap:6px;">';
+  html += '<button id="ai_send_btn" class="btn btn-primary" onclick="sendAIMessage()" style="white-space:nowrap;padding:8px 16px;">Send</button>';
+  html += '<button class="btn" onclick="clearAIChat()" style="font-size:11px;padding:4px 8px;white-space:nowrap;">Clear</button>';
+  html += '</div></div>';
+  html += '</div>';
+
+  document.getElementById('tab_content').innerHTML = html;
+
+  // Attach Enter key (Shift+Enter for newline)
+  var inp = document.getElementById('ai_input');
+  if (inp) inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAIMessage(); }
   });
-  saveAll(all);
-  renderHistoryTab();
+
+  // Scroll to bottom
+  scrollAIToBottom();
 }
 
-async function askHistory() {
-  var q = document.getElementById('history_q').value.trim();
+function scrollAIToBottom() {
+  var el = document.getElementById('ai_messages');
+  if (el) el.scrollTop = el.scrollHeight;
+}
+
+function clearAIChat() {
+  _aiChatHistory = [];
+  renderAITab();
+}
+
+async function sendAIMessage() {
+  var inp = document.getElementById('ai_input');
+  if (!inp) return;
+  var q = inp.value.trim();
   if (!q) return;
   var key = getApiKey();
   if (!key) { alert('Add your Anthropic API key in Settings first.'); return; }
-  var responseEl = document.getElementById('ask_response');
-  responseEl.style.display = 'block'; responseEl.textContent = 'Thinking...';
-  var rows    = window._historyRows || [];
-  var meta    = getPortfolioMeta(selectedName);
-  var instrText = meta.instructionNotes ? '\nInstructions:\n' + meta.instructionNotes : '';
-  var historyText = rows.map(function(r) {
-    return '[' + r.week + '] [' + (r.campaign||'general') + '] ' + (r.what_changed||'') + ' | Why: ' + (r.why||'') + ' | Verdict: ' + (r.verdict||'') + ' | Raw: ' + (r.raw_notes||'').slice(0, 200);
+
+  // Add user message
+  _aiChatHistory.push({role:'user', content:q});
+  inp.value = '';
+  var btn = document.getElementById('ai_send_btn');
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  renderAITab();
+
+  // Build context from Supabase history + instructions
+  var p      = getPortfolios().find(function(x){ return x.name === selectedName; });
+  var meta   = getPortfolioMeta(selectedName);
+  var instrText = meta.instructionNotes || '';
+  var stratText = meta.role ? 'Strategy: '+meta.role+', TACoS '+(meta.tacosMin||'?')+'-'+(meta.tacosMax||'?')+'%.' : '';
+
+  // Fetch history for context (use cached if available)
+  var histRows = window._aiHistoryCache && window._aiHistoryCache[selectedName] ? window._aiHistoryCache[selectedName] : [];
+  if (!histRows.length) {
+    histRows = await supabaseFetchHistory(selectedName);
+    if (!window._aiHistoryCache) window._aiHistoryCache = {};
+    window._aiHistoryCache[selectedName] = histRows;
+  }
+
+  var histText = histRows.map(function(r){
+    return '['+r.week+'] '+r.campaign+': '+r.what_changed+(r.rank?' | rank '+r.rank:'')+(r.why?' | why: '+r.why:'');
   }).join('\n');
-  var promptText = 'You are a PPC analyst reviewing the full history of portfolio "' + selectedName + '".' + instrText
-    + '\n\nHistory:\n' + (historyText || 'No history yet.')
-    + '\n\nQuestion: ' + q
-    + '\n\nAnswer directly, reference specific weeks, be concise and practical.';
+
+  var systemPrompt = 'You are a PPC analyst for Amazon FBA portfolio "'+p.name+'" (ASIN: '+p.asin+'). '
+    + (instrText ? 'IMPORTANT - follow these portfolio instructions exactly: '+instrText+'. ' : '')
+    + (stratText ? stratText+' ' : '')
+    + 'Log history: '+(histText||'No history yet.')+' Answer questions about this portfolio. Be direct and concise. Reference specific weeks and campaigns where relevant.'
+
+  // Build messages for API (include full chat history)
+  var messages = _aiChatHistory.map(function(m){
+    return {role: m.role, content: m.role === 'user' ? m.content : m.content.replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')};
+  });
+  // Add system context to first user message if single turn
+  messages[0].content = systemPrompt + ' User question: ' + messages[0].content;
+
   try {
     var res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:600, messages:[{role:'user', content:promptText}]})
+      headers: {'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body: JSON.stringify({model:'claude-sonnet-4-6', max_tokens:1000, messages:messages})
     });
     var data = await res.json();
     if (data.error) throw new Error(data.error.message);
-    var text = data.content.map(function(b) { return b.text || ''; }).join('');
-    responseEl.innerHTML = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
-  } catch(e) { responseEl.textContent = 'Error: ' + e.message; }
+    var reply = data.content.map(function(b){return b.text||'';}).join('');
+    _aiChatHistory.push({role:'assistant', content:reply});
+  } catch(e) {
+    _aiChatHistory.push({role:'assistant', content:'Error: '+e.message});
+  }
+
+  renderAITab();
+  scrollAIToBottom();
 }
+
 
 // =========================================================================
 // EXPORT CSV
