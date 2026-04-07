@@ -224,8 +224,8 @@ textarea:focus { border-color:#c9956a; }
 .btn-cancel-camp { font-size:12px; padding:5px 12px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#5a4230; cursor:pointer; }
 
 
-.camp-block { border:1px solid #e8ddd0; border-radius:8px; margin-bottom:8px; overflow:hidden; }
-.btn-edit { font-size:11px; padding:3px 10px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#5a4230; cursor:pointer; white-space:nowrap; }
+.camp-block { border:1px solid #e8ddd0; border-radius:8px; margin-bottom:10px; overflow:hidden; background:#fffdf9; }
+.btn-edit { font-size:11px; padding:2px 10px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#5a4230; cursor:pointer; }
 .btn-edit:hover { background:#f5ece2; }
 .edit-label { font-size:10px; text-transform:uppercase; letter-spacing:0.06em; color:#9c836a; margin:8px 0 3px; display:block; }
 .edit-input { width:100%; font-family:inherit; font-size:13px; padding:7px 9px; border:1px solid #ddd2c4; border-radius:5px; background:#fffdf9; color:#3d2e1e; outline:none; margin-bottom:2px; box-sizing:border-box; }
@@ -797,7 +797,7 @@ function renderLogTab() {
   }
 
   if (entry.campaigns && entry.campaigns.length) {
-    var saved = entry.savedAt ? new Date(entry.savedAt).toLocaleString('en-GB') : '';
+    var saved = entry.savedAt ? new Date(entry.savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
     var html = reminderBanner + banner;
     if (entry.snapshot && entry.snapshot.trim()) {
       html += '<div style="background:#f0ece4;border-left:3px solid #c9956a;border-radius:0 6px 6px 0;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#5a4230;line-height:1.6;">'
@@ -805,10 +805,16 @@ function renderLogTab() {
         + esc(entry.snapshot)
         + '</div>';
     }
-    for (var i = 0; i < entry.campaigns.length; i++) {
-      html += campBlockHTML(entry.campaigns[i], i);
-    }
-    html += '<div class="sync-note">Saved ' + saved + ' - synced to Supabase</div>';
+    // Sort campaigns numerically by the number in parentheses e.g. (1), (2)
+    var sorted = entry.campaigns.map(function(c,i){return {c:c,i:i};});
+    sorted.sort(function(a,b){
+      var na = parseInt((a.c.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+      var nb = parseInt((b.c.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+      return na - nb;
+    });
+    sorted.forEach(function(item){ html += campBlockHTML(item.c, item.i); });
+    var dateStr = entry.savedAt ? new Date(entry.savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}) : '';
+    html += '<div style="font-size:11px;color:#9c836a;margin-bottom:10px;padding:4px 0;border-bottom:1px solid #f0e8df;">Logged ' + dateStr + '</div>';
     if (admin) {
       html += '<div class="btn-row" style="margin-top:10px;"><button class="btn" onclick="reEdit()">Edit raw notes</button></div>';
     }
@@ -833,32 +839,36 @@ function attachReminderDoneListeners() {
 }
 
 function campBlockHTML(c, i) {
-  var savedBy   = c.savedBy || '?';
-  var what      = c.what  || '';
-  var why       = c.why   || '';
-  var rank      = c.rank  || '';
-  var whatShort = what.length > 65 ? what.slice(0, 62) + '...' : what;
-  var whyShort  = why.length  > 65 ? why.slice( 0, 62) + '...' : why;
-  var editBtn   = isAdmin()
-    ? '<button class="btn-edit" onclick="editCamp(' + i + ')" style="font-size:11px;padding:3px 10px;white-space:nowrap;">Edit</button>'
+  var savedBy = c.savedBy || '?';
+  var what    = c.what  || '';
+  var why     = c.why   || '';
+  var rank    = c.rank  || '';
+  var editBtn = isAdmin()
+    ? '<button class="btn-edit" onclick="editCamp(' + i + ')" style="font-size:11px;padding:2px 10px;">Edit</button>'
     : '';
-  var watchLine = '';
+  var checkLine = '';
   if (c.watch && c.watch.length) {
-    watchLine = '<div style="padding:4px 14px 7px;font-size:11px;color:#9c836a;">'
-      + '<span style="text-transform:uppercase;letter-spacing:0.05em;font-size:10px;margin-right:6px;">Check:</span>'
-      + c.watch.map(function(w){ return w.length>55?w.slice(0,52)+'...':w; }).join(' &nbsp;&#183;&nbsp; ')
+    checkLine = '<div style="display:flex;gap:6px;align-items:baseline;padding:5px 0;border-top:1px solid #f0e8df;">'
+      + '<span style="font-size:11px;font-weight:600;color:#9c836a;text-transform:uppercase;letter-spacing:0.05em;flex-shrink:0;">Check:</span>'
+      + '<span style="font-size:12px;color:#9c836a;">' + c.watch.map(function(w){return esc(w);}).join(' &nbsp;&#183;&nbsp; ') + '</span>'
       + '</div>';
   }
-  return '<div class="camp-block" id="cb_' + i + '" style="border:1px solid #e8ddd0;border-radius:8px;margin-bottom:8px;overflow:hidden;">'
-    + '<div style="display:flex;align-items:center;gap:10px;padding:9px 14px;">'
-    + '<span style="font-size:12px;font-weight:600;color:#5a4230;flex-shrink:0;min-width:110px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escA(c.campaign) + '">' + esc(c.campaign) + '</span>'
-    + '<span style="font-size:13px;color:#3d2e1e;flex:1;min-width:0;" title="' + escA(what) + '">' + esc(whatShort) + '</span>'
-    + (whyShort ? '<span style="font-size:12px;color:#6b5040;flex:1;min-width:0;font-style:italic;" title="' + escA(why) + '">' + esc(whyShort) + '</span>' : '')
-    + (rank ? '<span style="font-size:11px;color:#5a7a5a;background:#e8f4e8;padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0;">rank ' + esc(rank) + '</span>' : '')
-    + '<span class="user-badge" style="flex-shrink:0;font-size:10px;">' + esc(savedBy) + '</span>'
-    + (editBtn ? '<span style="flex-shrink:0;">' + editBtn + '</span>' : '')
+  return '<div class="camp-block" id="cb_' + i + '" style="border:1px solid #e8ddd0;border-radius:8px;margin-bottom:10px;overflow:hidden;background:#fffdf9;">'
+    // Header row: campaign name + user badge + edit
+    + '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px 8px;background:#f5ece2;border-bottom:1px solid #e8ddd0;">'
+    + '<span style="font-size:13px;font-weight:700;color:#3d2e1e;">' + esc(c.campaign) + '</span>'
+    + '<div style="display:flex;align-items:center;gap:8px;">'
+    + '<span class="user-badge" style="width:20px;height:20px;font-size:10px;">' + esc(savedBy) + '</span>'
+    + editBtn
     + '</div>'
-    + watchLine
+    + '</div>'
+    // Body rows
+    + '<div style="padding:8px 14px 6px;">'
+    + (what ? '<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #f5efe6;align-items:baseline;"><span style="font-size:11px;font-weight:600;color:#9c836a;text-transform:uppercase;letter-spacing:0.05em;width:60px;flex-shrink:0;">Change</span><span style="font-size:13px;color:#3d2e1e;line-height:1.5;">' + esc(what) + '</span></div>' : '')
+    + (rank ? '<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #f5efe6;align-items:baseline;"><span style="font-size:11px;font-weight:600;color:#9c836a;text-transform:uppercase;letter-spacing:0.05em;width:60px;flex-shrink:0;">Rank</span><span style="font-size:13px;font-weight:600;color:#5a7a5a;">' + esc(rank) + '</span></div>' : '')
+    + (why  ? '<div style="display:flex;gap:8px;padding:4px 0;' + (checkLine ? 'border-bottom:1px solid #f5efe6;' : '') + 'align-items:baseline;"><span style="font-size:11px;font-weight:600;color:#9c836a;text-transform:uppercase;letter-spacing:0.05em;width:60px;flex-shrink:0;">Why</span><span style="font-size:13px;color:#6b5040;line-height:1.5;">' + esc(why) + '</span></div>' : '')
+    + checkLine
+    + '</div>'
     + '</div>';
 }
 
@@ -1216,8 +1226,16 @@ async function renderHistoryTab() {
   var admin = isAdmin();
 
   // Group by week
+  // Group by week, deduplicate campaigns within each week
   var byWeek = {};
-  rows.forEach(function(r) { if (!byWeek[r.week]) byWeek[r.week] = []; byWeek[r.week].push(r); });
+  var seen = {};
+  rows.forEach(function(r) {
+    var key = (r.week||'') + '|' + (r.campaign||'');
+    if (seen[key]) return; // skip duplicate campaign entries for same week
+    seen[key] = true;
+    if (!byWeek[r.week]) byWeek[r.week] = [];
+    byWeek[r.week].push(r);
+  });
   var weeks = Object.keys(byWeek).sort(function(a,b) { return b.localeCompare(a); });
 
   var weekRows = weeks.length ? weeks.map(function(wk) {
