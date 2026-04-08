@@ -248,6 +248,8 @@ textarea:focus { border-color:#c9956a; }
 .disp-row { display:flex; align-items:center; justify-content:space-between; padding:6px 0; font-size:13px; color:#3d2e1e; }
 .disp-radio-group { display:flex; gap:14px; }
 .disp-radio-group label { font-size:13px; cursor:pointer; display:flex; align-items:center; gap:4px; }
+/* Make tab-content a flex column so split layout works */
+.tab-content { display:flex; flex-direction:column; }
 </style>
 </head>
 <body>
@@ -875,25 +877,16 @@ async function renderLogTab() {
   var admin  = isAdmin();
   var cu     = getCurrentUser();
   var p      = getPortfolios().find(function(x){ return x.name === selectedName; });
+  var meta   = getPortfolioMeta(selectedName);
+  var hasInstr = !!(meta.instructionNotes||'').trim();
 
-  // Show loading state
-  document.getElementById('tab_content').innerHTML = '<div style="font-size:13px;color:#9c836a;padding:20px 0;">Loading logs...</div>';
+  document.getElementById('tab_content').innerHTML = '<div style="font-size:13px;color:#9c836a;padding:20px 0;">Loading...</div>';
 
-  // Fetch ALL history from Supabase
+  // Fetch history from Supabase
   var allRows = await supabaseFetchHistory(selectedName);
-
-  // Also load local storage for all weeks
   var allLocal = loadAll();
 
-  // Build map of weekKey -> local entry
-  var localByWeek = {};
-  Object.keys(allLocal).forEach(function(wkKey) {
-    if (allLocal[wkKey][selectedName]) {
-      localByWeek[wkKey] = allLocal[wkKey][selectedName];
-    }
-  });
-
-  // Build week list from Supabase rows (deduplicated)
+  // Deduplicate Supabase rows by week+campaign
   var supaWeeks = {};
   var seen = {};
   allRows.forEach(function(r) {
@@ -904,118 +897,124 @@ async function renderLogTab() {
     supaWeeks[r.week].push(r);
   });
 
-  // Sort weeks oldest first (chronological, so newest is at bottom)
-  var supaWeekKeys = Object.keys(supaWeeks).sort(function(a,b){ return a.localeCompare(b); });
-
-  // Current week key and label
-  var curWkKey   = weekKey(weekOffset);
-  var curWkLabel = weekLabel(weekOffset).replace(/\(.*\)/,'').trim();
-  var curEntry   = localByWeek[curWkKey] || null;
-
   // Reminders banner
   var reminders = getReminders(selectedName);
-  var reminderBanner = '';
+  var reminderHtml = '';
   if (reminders.length) {
-    reminderBanner = '<div style="background:#f0ece4;border:1px solid #ddd2c4;border-radius:8px;padding:9px 14px;margin-bottom:12px;">'
-      + '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#9c836a;margin-bottom:4px;">Reminders</div>';
+    reminderHtml = '<div style="background:#f0ece4;border:1px solid #ddd2c4;border-radius:6px;padding:7px 12px;margin-bottom:8px;">';
     reminders.forEach(function(r, i) {
-      reminderBanner += '<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#3d2e1e;padding:2px 0;">'
+      reminderHtml += '<div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#3d2e1e;padding:2px 0;">'
         + '<span style="color:#c9956a;">&#8226;</span>' + esc(r.text)
-        + '<button data-ridx="'+i+'" class="del-rem-btn" style="margin-left:auto;font-size:10px;padding:1px 6px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;color:#b05030;cursor:pointer;">Done</button>'
+        + '<button data-ridx="'+i+'" class="del-rem-btn" style="margin-left:auto;font-size:10px;padding:1px 5px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;color:#b05030;cursor:pointer;">Done</button>'
         + '</div>';
     });
-    reminderBanner += '</div>';
+    reminderHtml += '</div>';
   }
 
-  var html = reminderBanner;
-
-  // ── Past weeks (oldest at top, newest below input) ──────────────────
-  supaWeekKeys.forEach(function(wk) {
-    // Skip current week - shown separately at bottom
-    if (wk === curWkLabel || supaWeeks[wk][0] && supaWeeks[wk][0].week === curWkLabel) return;
-
+  // Past weeks HTML (oldest first, newest second-to-last before "This week")
+  var weeksSorted = Object.keys(supaWeeks).sort(function(a,b){ return a.localeCompare(b); });
+  var curWkLabel  = weekLabel(weekOffset).replace(/\(.*\)/,'').trim();
+  var pastHtml = '';
+  weeksSorted.forEach(function(wk) {
     var entries = supaWeeks[wk];
-    var wkLabelDisplay = entries[0] ? entries[0].week : wk;
-    var savedAt = entries[0] ? entries[0].created_at : '';
-    var dateStr = savedAt ? new Date(savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}) : wkLabelDisplay;
-
-    html += '<div style="margin-bottom:14px;padding-bottom:14px;border-bottom:2px solid #f0e8df;">';
-    html += '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#9c836a;margin-bottom:8px;">Logged '+esc(dateStr)+'</div>';
-
-    // Snapshot if stored locally
-    var localEntry = null;
-    Object.keys(localByWeek).forEach(function(lk){
-      var le = localByWeek[lk];
-      if (le && le.savedAt) {
-        var leDate = new Date(le.savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
-        if (leDate === dateStr && le.snapshot) localEntry = le;
-      }
-    });
-    if (localEntry && localEntry.snapshot) {
-      html += '<div style="background:#f0ece4;border-left:3px solid #c9956a;border-radius:0 6px 6px 0;padding:7px 12px;margin-bottom:8px;font-size:12px;color:#5a4230;line-height:1.5;">'
-        + '<span style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#9c836a;display:block;margin-bottom:2px;">Snapshot</span>'
-        + esc(localEntry.snapshot) + '</div>';
-    }
-
-    // Sort campaigns by number
+    if (entries[0] && entries[0].week === curWkLabel) return; // skip current
+    var dateStr = entries[0] && entries[0].created_at
+      ? new Date(entries[0].created_at).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'})
+      : wk;
     var sorted = entries.slice().sort(function(a,b){
-      var na = parseInt((a.campaign.match(/\((\d+)\)/)||[0,999])[1]);
-      var nb = parseInt((b.campaign.match(/\((\d+)\)/)||[0,999])[1]);
-      return na - nb;
+      var na=parseInt((a.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+      var nb=parseInt((b.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+      return na-nb;
     });
-    sorted.forEach(function(r) {
-      if (!r.campaign || !r.campaign.trim()) return;
-      html += histCompactCard(r);
-    });
-    html += '</div>';
+    pastHtml += '<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #f0e8df;">';
+    pastHtml += '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#9c836a;margin-bottom:6px;">'+esc(dateStr)+'</div>';
+    sorted.forEach(function(r){ if (r.campaign && r.campaign.trim()) pastHtml += histCompactCard(r); });
+    pastHtml += '</div>';
   });
+  if (!pastHtml) pastHtml = '<div style="font-size:12px;color:#b0a090;font-style:italic;">No previous logs yet.</div>';
 
-  // ── Current week ─────────────────────────────────────────────────────
-  html += '<div id="current_week_section">';
-  html += '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#c9956a;margin-bottom:8px;">This week</div>';
+  var bs = 'font-size:12px;padding:2px 7px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;cursor:pointer;margin:1px;font-family:inherit;';
+
+  // Current week section
+  var curEntry = (allLocal[weekKey(weekOffset)]||{})[selectedName]||null;
+  var curHtml  = '';
 
   if (!curEntry) {
-    // Input form
-    var noKeyBanner = !hasKey ? '<div style="background:#fef3cd;border:1px solid #e8c84a;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:12px;color:#7a5c00;">No API key. ' + (admin ? '<a style="color:#c9956a;cursor:pointer;text-decoration:underline;" onclick="showSettings()">Add in Settings</a>' : 'Ask admin.') + '</div>' : '';
-    html += noKeyBanner
-      + '<textarea id="dump_ta" style="min-height:110px;" placeholder="Paste voice notes here. Claude will use your Instructions tab for context."></textarea>'
-      + '<div class="btn-row" style="margin-top:8px;"><button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">Save + analyse</button>'
-      + '<button class="btn" onclick="saveRaw()">Just save</button></div>'
+    curHtml = richEditorHTML('', 'rich_editor')
+      + '<div class="btn-row" style="margin-top:8px;">'
+      + '<button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">'+(hasInstr?'Save + analyse':'Save')+'</button>'
+      + '</div>'
       + '<div class="status" id="status_msg"></div>';
   } else if (curEntry.campaigns && curEntry.campaigns.length) {
     var savedDate = curEntry.savedAt ? new Date(curEntry.savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}) : '';
-    html += '<div style="font-size:10px;color:#9c836a;margin-bottom:8px;">Logged '+esc(savedDate)+'</div>';
-
-    if (curEntry.snapshot && curEntry.snapshot.trim()) {
-      html += '<div style="background:#f0ece4;border-left:3px solid #c9956a;border-radius:0 6px 6px 0;padding:7px 12px;margin-bottom:10px;font-size:12px;color:#5a4230;line-height:1.5;">'
-        + '<span style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#9c836a;display:block;margin-bottom:2px;">Snapshot</span>'
+    curHtml = '<div style="font-size:10px;color:#9c836a;margin-bottom:6px;">Logged '+esc(savedDate)+'</div>';
+    if (curEntry.snapshot && getDisplaySettings().showSnapshot) {
+      curHtml += '<div style="background:#f0ece4;border-left:3px solid #c9956a;border-radius:0 5px 5px 0;padding:6px 10px;margin-bottom:8px;font-size:12px;color:#5a4230;line-height:1.5;">'
+        + '<span style="font-size:9px;font-weight:600;text-transform:uppercase;color:#9c836a;display:block;margin-bottom:2px;">Snapshot</span>'
         + esc(curEntry.snapshot) + '</div>';
     }
-
-    var sortedCur = curEntry.campaigns.map(function(c,i){return{c:c,i:i};});
-    sortedCur.sort(function(a,b){
-      var na = parseInt((a.c.campaign.match(/\((\d+)\)/)||[0,999])[1]);
-      var nb = parseInt((b.c.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+    var sortedCur = curEntry.campaigns.slice().sort(function(a,b){
+      var na=parseInt((a.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+      var nb=parseInt((b.campaign.match(/\((\d+)\)/)||[0,999])[1]);
       return na-nb;
     });
-    sortedCur.forEach(function(item){ html += campBlockHTML(item.c, item.i); });
-
-    if (admin) {
-      html += '<div class="btn-row" style="margin-top:8px;"><button class="btn" onclick="reEdit()">Edit raw notes</button></div>';
-    }
+    sortedCur.forEach(function(item,i){ curHtml += campBlockHTML(item, curEntry.campaigns.indexOf(item)); });
+    if (admin) curHtml += '<div class="btn-row" style="margin-top:6px;"><button class="btn" onclick="reEdit()">Edit raw notes</button></div>';
   } else {
-    html += '<div class="raw-note">'+esc(curEntry.raw)+'</div>';
-    if (admin) html += '<div class="btn-row" style="margin-top:8px;"><button class="btn" onclick="reEdit()">Edit / re-log</button></div>';
+    var content = curEntry.rawHtml || esc(curEntry.raw||'');
+    curHtml = richEditorHTML(content, 'rich_editor')
+      + (admin ? '<div class="btn-row" style="margin-top:8px;"><button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">'+(hasInstr?'Save + analyse':'Save')+'</button></div>' : '')
+      + '<div class="status" id="status_msg"></div>';
   }
-  html += '</div>';
 
-  // Tasks section
-  html += tasksHTML();
+  // Build the split layout
+  var html = '<div id="log_wrap" style="display:flex;flex-direction:column;height:100%;min-height:0;">'
+    // TOP — history
+    + '<div id="log_top" style="flex:1;overflow-y:auto;min-height:60px;padding:0 2px;">'
+    + reminderHtml
+    + pastHtml
+    + '</div>'
+    // DIVIDER
+    + '<div id="log_divider" style="height:6px;background:#c9956a;cursor:row-resize;flex-shrink:0;display:flex;align-items:center;justify-content:center;">'
+    + '<div style="width:30px;height:2px;background:rgba(255,253,249,0.5);border-radius:2px;"></div>'
+    + '</div>'
+    // BOTTOM — this week
+    + '<div id="log_bottom" style="flex:1;overflow-y:auto;min-height:60px;display:flex;flex-direction:column;">'
+    + '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#c9956a;margin-bottom:8px;flex-shrink:0;">This week</div>'
+    + curHtml
+    + tasksHTML()
+    + '</div>'
+    + '</div>';
 
   document.getElementById('tab_content').innerHTML = html;
   attachReminderDoneListeners();
   attachTaskListeners();
+  setTimeout(attachEditorListeners, 0);
+  initLogDivider();
 }
+
+function initLogDivider() {
+  var divider = document.getElementById('log_divider');
+  var top     = document.getElementById('log_top');
+  var wrap    = document.getElementById('log_wrap');
+  if (!divider || !top || !wrap) return;
+  var dragging = false, startY = 0, startH = 0;
+  divider.addEventListener('mousedown', function(e) {
+    dragging = true; startY = e.clientY; startH = top.getBoundingClientRect().height;
+    document.body.style.userSelect = 'none'; e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var dy = e.clientY - startY;
+    var wH = wrap.getBoundingClientRect().height;
+    var nH = Math.max(60, Math.min(wH - 120, startH + dy));
+    top.style.flex = 'none'; top.style.height = nH + 'px';
+  });
+  document.addEventListener('mouseup', function() {
+    if (dragging) { dragging = false; document.body.style.userSelect = ''; }
+  });
+}
+
 
 function histCompactCard(r) {
   var what = r.what_changed || '';
@@ -1828,39 +1827,40 @@ function isPopupMode() {
 function initPopupMode() {
   document.body.style.cssText = 'margin:0;padding:0;background:#f5efe6;font-family:system-ui,sans-serif;overflow:hidden;height:100vh;';
 
-  var ports     = getPortfolios();
-  var all       = loadAll();
-  var wkKeys    = Object.keys(all).sort().reverse();
+  var ports  = getPortfolios();
+  var all    = loadAll();
+  var wkKeys = Object.keys(all).sort().reverse();
 
-  var portOpts  = '<option value="">-- select portfolio --</option>'
+  var portOpts = '<option value="">-- select portfolio --</option>'
     + ports.map(function(p){ return '<option value="'+escA(p.name)+'">'+esc(p.name)+'</option>'; }).join('');
 
-  var wkOpts    = '<option value="">Last week</option>'
+  var wkOpts = '<option value="">Last week</option>'
     + wkKeys.map(function(wk){ return '<option value="'+escA(wk)+'">'+esc(wk)+'</option>'; }).join('');
 
-  var bs = 'font-size:12px;padding:2px 6px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;cursor:pointer;margin:1px;font-family:inherit;';
+  var bs = 'font-size:12px;padding:2px 7px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;cursor:pointer;margin:1px;font-family:inherit;';
 
   document.body.innerHTML =
-    '<div style="display:flex;flex-direction:column;height:100vh;overflow:hidden;">'
+    '<div id="popup_wrap" style="display:flex;flex-direction:column;height:100vh;overflow:hidden;">'
 
-    // TOP HALF — past log (read only)
-    + '<div style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;">'
+    // TOP PANEL — past log
+    + '<div id="popup_top" style="display:flex;flex-direction:column;overflow:hidden;min-height:60px;">'
     + '<div style="display:flex;gap:6px;align-items:center;padding:7px 10px;background:#3d2e1e;flex-shrink:0;">'
-    + '<select id="popup_port" onchange="popupLoadLog()" style="flex:1;font-size:12px;padding:4px 6px;border:none;border-radius:5px;background:#5a4230;color:#fffdf9;">'+portOpts+'</select>'
-    + '<select id="popup_week" onchange="popupLoadLog()" style="font-size:12px;padding:4px 6px;border:none;border-radius:5px;background:#5a4230;color:#fffdf9;">'+wkOpts+'</select>'
+    + '<select id="popup_port" onchange="popupLoadLog()" style="flex:1;font-size:12px;padding:4px 6px;border:none;border-radius:5px;background:#5a4230;color:#fffdf9;font-family:inherit;">'+portOpts+'</select>'
+    + '<select id="popup_week" onchange="popupLoadLog()" style="font-size:12px;padding:4px 6px;border:none;border-radius:5px;background:#5a4230;color:#fffdf9;font-family:inherit;">'+wkOpts+'</select>'
     + '</div>'
-    + '<div id="popup_log" style="flex:1;overflow-y:auto;padding:10px;background:#fffdf9;">'
+    + '<div id="popup_log" style="flex:1;overflow-y:auto;padding:10px 14px;background:#fffdf9;">'
     + '<div style="font-size:12px;color:#b0a090;font-style:italic;">Select a portfolio to view its log.</div>'
     + '</div>'
     + '</div>'
 
-    // DIVIDER
-    + '<div style="height:3px;background:#c9956a;flex-shrink:0;"></div>'
+    // DRAGGABLE DIVIDER
+    + '<div id="popup_divider" style="height:6px;background:#c9956a;cursor:row-resize;flex-shrink:0;display:flex;align-items:center;justify-content:center;">'
+    + '<div style="width:30px;height:2px;background:rgba(255,253,249,0.5);border-radius:2px;"></div>'
+    + '</div>'
 
-    // BOTTOM HALF — this week input
-    + '<div style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;background:#fff;">'
+    // BOTTOM PANEL — this week input
+    + '<div id="popup_bottom" style="display:flex;flex-direction:column;overflow:hidden;min-height:60px;background:#fff;">'
     + '<div style="padding:6px 10px;background:#5a4230;color:#fffdf9;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;flex-shrink:0;">Log this week</div>'
-    // Toolbar
     + '<div style="display:flex;gap:2px;padding:5px 8px;background:#f9f4ef;border-bottom:1px solid #e8ddd0;flex-shrink:0;flex-wrap:wrap;">'
     + '<button type="button" data-fmt="bold"          data-eid="popup_editor" class="fmt-btn" style="'+bs+'font-weight:bold;">B</button>'
     + '<button type="button" data-fmt="italic"        data-eid="popup_editor" class="fmt-btn" style="'+bs+'font-style:italic;">I</button>'
@@ -1875,10 +1875,8 @@ function initPopupMode() {
     + '<button type="button" data-col="#2e7d32" data-eid="popup_editor" class="col-btn" style="'+bs+'color:#2e7d32;font-weight:700;">A</button>'
     + '<button type="button" data-col="#3d2e1e" data-eid="popup_editor" class="col-btn" style="'+bs+'color:#3d2e1e;font-weight:700;">A</button>'
     + '</div>'
-    // Editor
     + '<div id="popup_editor" contenteditable="true" spellcheck="true" '
-    + 'style="flex:1;padding:10px 12px;font-size:13px;line-height:1.7;color:#3d2e1e;outline:none;overflow-y:auto;background:#fff;"></div>'
-    // Save bar
+    + 'style="flex:1;padding:10px 14px;font-size:13px;line-height:1.7;color:#3d2e1e;outline:none;overflow-y:auto;background:#fff;"></div>'
     + '<div style="display:flex;gap:6px;padding:7px 10px;background:#f5ece2;border-top:1px solid #e8ddd0;align-items:center;flex-shrink:0;">'
     + '<span id="popup_status" style="flex:1;font-size:11px;color:#9c836a;"></span>'
     + '<button onclick="popupSave()" style="font-size:13px;padding:6px 18px;background:#3d2e1e;color:#fffdf9;border:none;border-radius:5px;cursor:pointer;font-family:inherit;">Save</button>'
@@ -1887,6 +1885,37 @@ function initPopupMode() {
     + '</div>';
 
   attachEditorListeners();
+  initPopupDivider();
+}
+
+function initPopupDivider() {
+  var divider = document.getElementById('popup_divider');
+  var top     = document.getElementById('popup_top');
+  var wrap    = document.getElementById('popup_wrap');
+  if (!divider || !top || !wrap) return;
+
+  var dragging = false, startY = 0, startH = 0;
+
+  divider.addEventListener('mousedown', function(e) {
+    dragging = true;
+    startY   = e.clientY;
+    startH   = top.getBoundingClientRect().height;
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var dy     = e.clientY - startY;
+    var wrapH  = wrap.getBoundingClientRect().height;
+    var newH   = Math.max(60, Math.min(wrapH - 120, startH + dy));
+    top.style.flex = 'none';
+    top.style.height = newH + 'px';
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (dragging) { dragging = false; document.body.style.userSelect = ''; }
+  });
 }
 
 
@@ -1940,7 +1969,7 @@ function popupLoadLog() {
 
 async function popupSave() {
   var editor  = document.getElementById('popup_editor');
-  var portSel = document.getElementById('popup_port_save');
+  var portSel = document.getElementById('popup_port');
   var statusEl= document.getElementById('popup_status');
   if (!editor || !portSel) return;
   var raw     = (editor.innerText || editor.textContent || '').trim();
