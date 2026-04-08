@@ -278,6 +278,7 @@ textarea:focus { border-color:#c9956a; }
       <button id="ideas_btn"    class="tb-btn tb-btn-outline" onclick="showIdeasBank()"        style="display:none;">Ideas Bank</button>
       <button id="upload_btn"   class="tb-btn tb-btn-outline" onclick="triggerHistoryUpload()" style="display:none;">Upload History</button>
       <button id="export_btn"   class="tb-btn tb-btn-outline" onclick="exportCSV()"            style="display:none;">Export CSV</button>
+      <button                   class="tb-btn tb-btn-outline" onclick="openPopupWindow()">&#9633; Popup</button>
       <button                   class="tb-btn tb-btn-outline" onclick="showDisplayPanel()">Display</button>
       <button id="settings_btn" class="tb-btn tb-btn-accent"  onclick="showSettings()"         style="display:none;">Settings</button>
     </div>
@@ -314,7 +315,6 @@ textarea:focus { border-color:#c9956a; }
 
 <input type="file" id="history_file_input" accept=".csv" style="display:none;" onchange="handleHistoryUpload(this)" />
 
-<!-- ADD PORTFOLIO MODAL -->
 <div class="modal-bg" id="add_modal">
   <div class="modal">
     <h3>Add new portfolio</h3>
@@ -329,7 +329,6 @@ textarea:focus { border-color:#c9956a; }
   </div>
 </div>
 
-<!-- SETTINGS MODAL -->
 <div class="modal-bg" id="settings_modal">
   <div class="modal" style="width:460px;">
     <h3>Settings</h3>
@@ -357,7 +356,6 @@ textarea:focus { border-color:#c9956a; }
   </div>
 </div>
 
-<!-- DISPLAY SETTINGS MODAL -->
 <div class="modal-bg" id="display_modal">
   <div class="modal" style="width:360px;">
     <h3>Display settings</h3>
@@ -370,7 +368,7 @@ textarea:focus { border-color:#c9956a; }
       </div>
     </div>
     <div class="disp-section">
-      <div class="disp-section-label">Sidebar portfolio list font size</div>
+      <div class="disp-section-label">Sidebar portfolio list</div>
       <div class="disp-radio-group">
         <label><input type="radio" name="disp_sidebarFont" id="disp_sidebarFont_small"  value="small">Small</label>
         <label><input type="radio" name="disp_sidebarFont" id="disp_sidebarFont_medium" value="medium">Medium</label>
@@ -386,7 +384,7 @@ textarea:focus { border-color:#c9956a; }
       </div>
     </div>
     <div class="disp-section">
-      <div class="disp-section-label">Show / hide rows in cards</div>
+      <div class="disp-section-label">Show / hide in cards</div>
       <div class="disp-row"><span>Why row</span><input type="checkbox" id="disp_why"  style="width:18px;height:18px;cursor:pointer;" /></div>
       <div class="disp-row"><span>Rank row</span><input type="checkbox" id="disp_rank" style="width:18px;height:18px;cursor:pointer;" /></div>
       <div class="disp-row"><span>Product snapshot</span><input type="checkbox" id="disp_snap" style="width:18px;height:18px;cursor:pointer;" /></div>
@@ -398,7 +396,6 @@ textarea:focus { border-color:#c9956a; }
   </div>
 </div>
 
-<!-- IDEAS BANK MODAL -->
 <div class="modal-bg" id="ideas_modal">
   <div class="modal ideas-modal-inner" style="max-height:90vh;overflow-y:auto;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
@@ -817,6 +814,62 @@ function renderCurrentTab() {
 // LOG TAB
 // =========================================================================
 
+function richEditorHTML(content, editorId) {
+  editorId = editorId || 'rich_editor';
+  var bs = 'font-size:13px;padding:2px 7px;border:1px solid #ddd2c4;border-radius:4px;background:#fffdf9;cursor:pointer;font-family:inherit;margin:1px;';
+  return '<div style="border:1px solid #ddd2c4;border-radius:8px;overflow:hidden;background:#fff;margin-bottom:4px;">'
+    + '<div style="display:flex;align-items:center;gap:2px;padding:5px 8px;background:#f9f4ef;border-bottom:1px solid #e8ddd0;flex-wrap:wrap;">'
+    + '<button type="button" data-fmt="bold"          data-eid="'+editorId+'" class="fmt-btn" title="Bold"          style="'+bs+'font-weight:bold;">B</button>'
+    + '<button type="button" data-fmt="italic"        data-eid="'+editorId+'" class="fmt-btn" title="Italic"        style="'+bs+'font-style:italic;">I</button>'
+    + '<button type="button" data-fmt="underline"     data-eid="'+editorId+'" class="fmt-btn" title="Underline"     style="'+bs+'text-decoration:underline;">U</button>'
+    + '<button type="button" data-fmt="strikeThrough" data-eid="'+editorId+'" class="fmt-btn" title="Strikethrough" style="'+bs+'text-decoration:line-through;">S</button>'
+    + '<span style="width:1px;height:18px;background:#ddd2c4;margin:0 4px;display:inline-block;"></span>'
+    + '<button type="button" data-hi="#FFE066"     data-eid="'+editorId+'" class="hi-btn"  title="Yellow highlight" style="'+bs+'background:#FFE066;">A</button>'
+    + '<button type="button" data-hi="transparent" data-eid="'+editorId+'" class="hi-btn"  title="Clear highlight"  style="'+bs+'">&#10006;</button>'
+    + '<span style="width:1px;height:18px;background:#ddd2c4;margin:0 4px;display:inline-block;"></span>'
+    + '<button type="button" data-col="#e53935" data-eid="'+editorId+'" class="col-btn" title="Red"     style="'+bs+'color:#e53935;font-weight:700;">A</button>'
+    + '<button type="button" data-col="#1e88e5" data-eid="'+editorId+'" class="col-btn" title="Blue"    style="'+bs+'color:#1e88e5;font-weight:700;">A</button>'
+    + '<button type="button" data-col="#2e7d32" data-eid="'+editorId+'" class="col-btn" title="Green"   style="'+bs+'color:#2e7d32;font-weight:700;">A</button>'
+    + '<button type="button" data-col="#3d2e1e" data-eid="'+editorId+'" class="col-btn" title="Default" style="'+bs+'color:#3d2e1e;font-weight:700;">A</button>'
+    + '</div>'
+    + '<div id="'+editorId+'" contenteditable="true" spellcheck="true" '
+    + 'style="min-height:140px;padding:14px 16px;font-size:14px;line-height:1.8;color:#3d2e1e;outline:none;font-family:system-ui,sans-serif;background:#fff;">'
+    + (content || '') + '</div></div>';
+}
+
+function attachEditorListeners() {
+  document.querySelectorAll('.fmt-btn').forEach(function(btn) {
+    btn.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      var eid = this.getAttribute('data-eid');
+      var el  = document.getElementById(eid);
+      if (el) el.focus();
+      document.execCommand(this.getAttribute('data-fmt'), false, null);
+    });
+  });
+  document.querySelectorAll('.hi-btn').forEach(function(btn) {
+    btn.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      var eid = this.getAttribute('data-eid');
+      var el  = document.getElementById(eid);
+      if (el) el.focus();
+      document.execCommand('hiliteColor', false, this.getAttribute('data-hi'));
+    });
+  });
+  document.querySelectorAll('.col-btn').forEach(function(btn) {
+    btn.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      var eid = this.getAttribute('data-eid');
+      var el  = document.getElementById(eid);
+      if (el) el.focus();
+      document.execCommand('foreColor', false, this.getAttribute('data-col'));
+    });
+  });
+}
+
+
+
+
 async function renderLogTab() {
   var hasKey = !!getApiKey();
   var admin  = isAdmin();
@@ -1072,20 +1125,26 @@ function cancelCamp(i) {
 function reEdit() {
   if (!isAdmin()) return;
   var entry = getEntry(selectedName);
+  var content = entry && entry.rawHtml ? entry.rawHtml : (entry ? esc(entry.raw) : '');
+  var hasInstr = !!(getPortfolioMeta(selectedName).instructionNotes || '').trim();
+  var analyseLabel = hasInstr ? 'Save + analyse' : 'Save';
   document.getElementById('tab_content').innerHTML =
     '<div class="section-label" style="margin-bottom:8px;">Edit notes</div>'
-    + '<textarea id="dump_ta" style="min-height:150px;">' + esc(entry ? entry.raw : '') + '</textarea>'
-    + '<div class="btn-row"><button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">Save + analyse</button>'
-    + '<button class="btn" onclick="saveRaw()">Just save</button></div>'
+    + richEditorHTML(content)
+    + '<div class="btn-row" style="margin-top:8px;"><button class="btn btn-primary" id="save_btn" onclick="analyseAndSave()">'+analyseLabel+'</button>'
+    + '<button class="btn" onclick="renderLogTab()">Cancel</button></div>'
     + '<div class="status" id="status_msg"></div>';
+  setTimeout(attachEditorListeners, 0);
 }
 
-function saveRaw() {
-  var raw = document.getElementById('dump_ta').value.trim();
+function saveRaw(rawText, rawHtml) {
+  var editorEl = document.getElementById('rich_editor');
+  var raw = rawText || (editorEl ? (editorEl.innerText || editorEl.textContent || '').trim() : '');
+  var html = rawHtml || (editorEl ? editorEl.innerHTML : '');
   if (!raw) return;
   var p  = getPortfolios().find(function(x) { return x.name === selectedName; });
   var cu = getCurrentUser();
-  var entry = {raw: raw, campaigns: null, savedAt: new Date().toISOString(), savedBy: cu ? cu.initial : '?'};
+  var entry = {raw: raw, rawHtml: html, campaigns: null, savedAt: new Date().toISOString(), savedBy: cu ? cu.initial : '?'};
   setEntry(selectedName, entry);
   supabaseInsert({
     week: weekLabel(weekOffset).replace(/\(.*\)/, '').trim(),
@@ -1100,9 +1159,16 @@ function saveRaw() {
 }
 
 async function analyseAndSave() {
-  var raw = document.getElementById('dump_ta').value.trim();
+  // Get content from rich text editor
+  var editorEl = document.getElementById('rich_editor');
+  var raw = editorEl ? (editorEl.innerText || editorEl.textContent || '').trim() : '';
+  var rawHtml = editorEl ? editorEl.innerHTML : '';
   if (!raw) return;
-  var key = getApiKey(); if (!key) { saveRaw(); return; }
+  var key = getApiKey();
+  var meta = getPortfolioMeta(selectedName);
+  var instrText = (meta.instructionNotes || '').trim();
+  // Only run Claude if there are instructions AND an API key
+  if (!key || !instrText) { saveRaw(raw, rawHtml); return; }
   var btn = document.getElementById('save_btn');
   btn.disabled = true; btn.textContent = 'Analysing...';
   var p    = getPortfolios().find(function(x){ return x.name === selectedName; });
@@ -1110,7 +1176,7 @@ async function analyseAndSave() {
   var cu   = getCurrentUser();
   var instrText = meta.instructionNotes ? 'Portfolio instructions: ' + meta.instructionNotes : '';
   var stratText = meta.role ? 'Strategy: Role=' + meta.role + ', Target TACoS ' + (meta.tacosMin||'?') + '-' + (meta.tacosMax||'?') + '%. ' + (meta.notes||'') : '';
-  var promptText = 'Amazon FBA PPC notes for portfolio "' + p.name + '" (ASIN: ' + p.asin + '). ' + stratText + ' ' + instrText
+  var promptText = 'Amazon FBA PPC notes for portfolio "' + p.name + '" (ASIN: ' + p.asin + '). ' + stratText + ' Follow these instructions exactly: ' + instrText + ' CRITICAL: use ONLY the exact words from the voice note. Do not add reasoning, interpretation, or anything not explicitly stated. Extract only what is said.'
     + ' Voice note: ' + raw
     + ' Return ONLY valid JSON, no markdown, no explanation.'
     + ' {"snapshot":"1-2 sentences only if user mentions overall product health, profitability, or organic share. Otherwise empty string.",'
@@ -1130,7 +1196,7 @@ async function analyseAndSave() {
     var parsed = JSON.parse(text);
     var initial = cu ? cu.initial : '?';
     parsed.campaigns.forEach(function(c){ c.savedBy = initial; });
-    var entry = {raw:raw, snapshot:parsed.snapshot||'', campaigns:parsed.campaigns, savedAt:new Date().toISOString(), savedBy:initial};
+    var entry = {raw:raw, rawHtml:rawHtml, snapshot:parsed.snapshot||'', campaigns:parsed.campaigns, savedAt:new Date().toISOString(), savedBy:initial};
     setEntry(selectedName, entry);
     var wk = weekLabel(weekOffset).replace(/\(.*\)/,'').trim();
     for (var i=0; i<parsed.campaigns.length; i++) {
@@ -1741,6 +1807,235 @@ function parseCSVLine(line) {
 }
 
 
+// =========================================================================
+// POPUP WINDOW LAUNCHER
+// =========================================================================
+
+function openPopupWindow() {
+  var url = window.location.href.replace(/[?#].*$/, '') + '?popup=1';
+  var w = 420, h = 600;
+  var left = window.screen.width - w - 20;
+  var top  = 60;
+  window.open(url, 'ppc_popup',
+    'width='+w+',height='+h+',left='+left+',top='+top+
+    ',resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no,status=no');
+}
+
+function isPopupMode() {
+  return window.location.search.indexOf('popup=1') !== -1;
+}
+
+function initPopupMode() {
+  document.body.style.cssText = 'margin:0;padding:0;background:#f5efe6;font-family:system-ui,sans-serif;overflow:hidden;height:100vh;';
+
+  var ports     = getPortfolios();
+  var all       = loadAll();
+  var wkKeys    = Object.keys(all).sort().reverse();
+
+  var portOpts  = '<option value="">-- select portfolio --</option>'
+    + ports.map(function(p){ return '<option value="'+escA(p.name)+'">'+esc(p.name)+'</option>'; }).join('');
+
+  var wkOpts    = '<option value="">Last week</option>'
+    + wkKeys.map(function(wk){ return '<option value="'+escA(wk)+'">'+esc(wk)+'</option>'; }).join('');
+
+  var bs = 'font-size:12px;padding:2px 6px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;cursor:pointer;margin:1px;font-family:inherit;';
+
+  document.body.innerHTML =
+    '<div style="display:flex;flex-direction:column;height:100vh;overflow:hidden;">'
+
+    // TOP HALF — past log (read only)
+    + '<div style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;">'
+    + '<div style="display:flex;gap:6px;align-items:center;padding:7px 10px;background:#3d2e1e;flex-shrink:0;">'
+    + '<select id="popup_port" onchange="popupLoadLog()" style="flex:1;font-size:12px;padding:4px 6px;border:none;border-radius:5px;background:#5a4230;color:#fffdf9;">'+portOpts+'</select>'
+    + '<select id="popup_week" onchange="popupLoadLog()" style="font-size:12px;padding:4px 6px;border:none;border-radius:5px;background:#5a4230;color:#fffdf9;">'+wkOpts+'</select>'
+    + '</div>'
+    + '<div id="popup_log" style="flex:1;overflow-y:auto;padding:10px;background:#fffdf9;">'
+    + '<div style="font-size:12px;color:#b0a090;font-style:italic;">Select a portfolio to view its log.</div>'
+    + '</div>'
+    + '</div>'
+
+    // DIVIDER
+    + '<div style="height:3px;background:#c9956a;flex-shrink:0;"></div>'
+
+    // BOTTOM HALF — this week input
+    + '<div style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;background:#fff;">'
+    + '<div style="padding:6px 10px;background:#5a4230;color:#fffdf9;font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;flex-shrink:0;">Log this week</div>'
+    // Toolbar
+    + '<div style="display:flex;gap:2px;padding:5px 8px;background:#f9f4ef;border-bottom:1px solid #e8ddd0;flex-shrink:0;flex-wrap:wrap;">'
+    + '<button type="button" data-fmt="bold"          data-eid="popup_editor" class="fmt-btn" style="'+bs+'font-weight:bold;">B</button>'
+    + '<button type="button" data-fmt="italic"        data-eid="popup_editor" class="fmt-btn" style="'+bs+'font-style:italic;">I</button>'
+    + '<button type="button" data-fmt="underline"     data-eid="popup_editor" class="fmt-btn" style="'+bs+'text-decoration:underline;">U</button>'
+    + '<button type="button" data-fmt="strikeThrough" data-eid="popup_editor" class="fmt-btn" style="'+bs+'text-decoration:line-through;">S</button>'
+    + '<span style="width:1px;height:16px;background:#ddd2c4;margin:0 3px;display:inline-block;vertical-align:middle;"></span>'
+    + '<button type="button" data-hi="#FFE066"     data-eid="popup_editor" class="hi-btn" style="'+bs+'background:#FFE066;">A</button>'
+    + '<button type="button" data-hi="transparent" data-eid="popup_editor" class="hi-btn" style="'+bs+'">&#10006;</button>'
+    + '<span style="width:1px;height:16px;background:#ddd2c4;margin:0 3px;display:inline-block;vertical-align:middle;"></span>'
+    + '<button type="button" data-col="#e53935" data-eid="popup_editor" class="col-btn" style="'+bs+'color:#e53935;font-weight:700;">A</button>'
+    + '<button type="button" data-col="#1e88e5" data-eid="popup_editor" class="col-btn" style="'+bs+'color:#1e88e5;font-weight:700;">A</button>'
+    + '<button type="button" data-col="#2e7d32" data-eid="popup_editor" class="col-btn" style="'+bs+'color:#2e7d32;font-weight:700;">A</button>'
+    + '<button type="button" data-col="#3d2e1e" data-eid="popup_editor" class="col-btn" style="'+bs+'color:#3d2e1e;font-weight:700;">A</button>'
+    + '</div>'
+    // Editor
+    + '<div id="popup_editor" contenteditable="true" spellcheck="true" '
+    + 'style="flex:1;padding:10px 12px;font-size:13px;line-height:1.7;color:#3d2e1e;outline:none;overflow-y:auto;background:#fff;"></div>'
+    // Save bar
+    + '<div style="display:flex;gap:6px;padding:7px 10px;background:#f5ece2;border-top:1px solid #e8ddd0;align-items:center;flex-shrink:0;">'
+    + '<span id="popup_status" style="flex:1;font-size:11px;color:#9c836a;"></span>'
+    + '<button onclick="popupSave()" style="font-size:13px;padding:6px 18px;background:#3d2e1e;color:#fffdf9;border:none;border-radius:5px;cursor:pointer;font-family:inherit;">Save</button>'
+    + '</div>'
+    + '</div>'
+    + '</div>';
+
+  attachEditorListeners();
+}
+
+
+function popupLoadLog() {
+  var portSel = document.getElementById('popup_port');
+  var wkSel   = document.getElementById('popup_week');
+  var logEl   = document.getElementById('popup_log');
+  if (!portSel || !logEl) return;
+  var name = portSel.value;
+  var wkKey = wkSel ? wkSel.value : '';
+  if (!name) { logEl.innerHTML = ''; return; }
+
+  // Also sync portfolio picker to save selector
+  var saveSel = document.getElementById('popup_port_save');
+  if (saveSel) saveSel.value = name;
+
+  var all   = loadAll();
+  var entry = wkKey ? (all[wkKey]||{})[name] : (all[weekKey(0)]||{})[name];
+
+  if (!entry) {
+    logEl.innerHTML = '<div style="font-size:12px;color:#b0a090;padding:8px;">No log for this period.</div>';
+    return;
+  }
+
+  var html = '';
+  if (entry.snapshot) {
+    html += '<div style="font-size:11px;color:#5a4230;background:#f0ece4;border-left:3px solid #c9956a;padding:5px 8px;border-radius:0 4px 4px 0;margin-bottom:8px;line-height:1.5;">'+esc(entry.snapshot)+'</div>';
+  }
+  if (entry.campaigns && entry.campaigns.length) {
+    var sorted = entry.campaigns.slice().sort(function(a,b){
+      var na=parseInt((a.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+      var nb=parseInt((b.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+      return na-nb;
+    });
+    sorted.forEach(function(c) {
+      html += '<div style="border:1px solid #e8ddd0;border-radius:6px;margin-bottom:4px;overflow:hidden;background:#fffdf9;">';
+      html += '<div style="padding:4px 8px;background:#f5ece2;font-size:11px;font-weight:700;color:#3d2e1e;">'+esc(c.campaign)+':</div>';
+      html += '<div style="padding:3px 8px 5px;">';
+      if (c.what) html += '<div style="font-size:11px;color:#3d2e1e;padding:1px 0;"><span style="font-weight:600;color:#9c836a;margin-right:4px;">Change</span>'+esc(c.what)+'</div>';
+      if (c.rank) html += '<div style="font-size:11px;font-weight:600;color:#5a7a5a;padding:1px 0;"><span style="font-weight:600;color:#9c836a;margin-right:4px;">Rank</span>'+esc(c.rank)+'</div>';
+      if (c.why)  html += '<div style="font-size:11px;color:#6b5040;padding:1px 0;"><span style="font-weight:600;color:#9c836a;margin-right:4px;">Why</span>'+esc(c.why)+'</div>';
+      html += '</div></div>';
+    });
+  } else if (entry.rawHtml) {
+    html += '<div style="font-size:12px;color:#3d2e1e;line-height:1.6;">'+entry.rawHtml+'</div>';
+  } else if (entry.raw) {
+    html += '<div style="font-size:12px;color:#3d2e1e;line-height:1.6;white-space:pre-wrap;">'+esc(entry.raw)+'</div>';
+  }
+  logEl.innerHTML = html;
+}
+
+async function popupSave() {
+  var editor  = document.getElementById('popup_editor');
+  var portSel = document.getElementById('popup_port_save');
+  var statusEl= document.getElementById('popup_status');
+  if (!editor || !portSel) return;
+  var raw     = (editor.innerText || editor.textContent || '').trim();
+  var rawHtml = editor.innerHTML;
+  var name    = portSel.value;
+  if (!raw)  { statusEl.textContent = 'Nothing to save.'; statusEl.style.color='#b05030'; return; }
+  if (!name) { statusEl.textContent = 'Select a portfolio.'; statusEl.style.color='#b05030'; return; }
+
+  statusEl.textContent = 'Saving...'; statusEl.style.color='#9c836a';
+
+  var meta     = getPortfolioMeta(name);
+  var instrText = (meta.instructionNotes||'').trim();
+  var key       = getApiKey();
+  var p         = getPortfolios().find(function(x){return x.name===name;});
+  var cu        = getCurrentUser();
+  var initial   = cu ? cu.initial : '?';
+
+  if (key && instrText) {
+    // Run Claude analysis
+    var stratText = meta.role ? 'Strategy: '+meta.role+', TACoS '+(meta.tacosMin||'?')+'-'+(meta.tacosMax||'?')+'%.' : '';
+    var promptText = 'Amazon FBA PPC notes for portfolio "'+p.name+'" (ASIN: '+p.asin+'). '+stratText+' Follow these instructions exactly: '+instrText+' CRITICAL: use ONLY the exact words from the voice note. Return ONLY valid JSON: {"snapshot":"1-2 sentences if overall product health mentioned, else empty","campaigns":[{"campaign":"name","what":"change description","why":"reason","rank":"rank or empty","watch":[]}]}';
+    try {
+      var res = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1200,messages:[{role:'user',content:promptText+' Voice note: '+raw}]})
+      });
+      var data = await res.json();
+      if (!data.error) {
+        var text   = data.content.map(function(b){return b.text||'';}).join('').replace(/```json|```/g,'').trim();
+        var parsed = JSON.parse(text);
+        parsed.campaigns.forEach(function(c){c.savedBy=initial;});
+        var entry = {raw:raw,rawHtml:rawHtml,snapshot:parsed.snapshot||'',campaigns:parsed.campaigns,savedAt:new Date().toISOString(),savedBy:initial};
+        var all=loadAll(); var wk=weekKey(0); if(!all[wk])all[wk]={}; all[wk][name]=entry; saveAll(all);
+        statusEl.textContent='Saved + analysed.'; statusEl.style.color='#2e7d32';
+        editor.innerHTML=''; popupLoadLog(); return;
+      }
+    } catch(e) {}
+  }
+  // Save raw
+  var all=loadAll(); var wk=weekKey(0); if(!all[wk])all[wk]={};
+  all[wk][name]={raw:raw,rawHtml:rawHtml,campaigns:null,savedAt:new Date().toISOString(),savedBy:initial};
+  saveAll(all);
+  statusEl.textContent='Saved.'; statusEl.style.color='#2e7d32';
+  editor.innerHTML=''; popupLoadLog();
+}
+
+
+function filterPopup(val) {
+  var items = document.querySelectorAll('.popup-item');
+  items.forEach(function(el){
+    el.style.display = el.getAttribute('data-name').toLowerCase().indexOf(val.toLowerCase()) !== -1 ? '' : 'none';
+  });
+}
+
+function showPopupPort(name) {
+  var all    = loadAll();
+  var entry  = (all[weekKey(0)] || {})[name];
+  var logEl  = document.getElementById('popup_log');
+  logEl.style.display = 'block';
+
+  if (!entry) {
+    logEl.innerHTML = '<div style="font-size:12px;color:#b0a090;padding:8px 0;">No log this week for '+esc(name)+'.</div>';
+    return;
+  }
+
+  var html = '<div style="font-size:11px;font-weight:600;color:#c9956a;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">'+esc(name)+'</div>';
+
+  if (entry.snapshot) {
+    html += '<div style="font-size:11px;color:#5a4230;background:#f0ece4;border-left:3px solid #c9956a;padding:5px 8px;border-radius:0 4px 4px 0;margin-bottom:8px;line-height:1.5;">'+esc(entry.snapshot)+'</div>';
+  }
+
+  if (entry.campaigns && entry.campaigns.length) {
+    var sorted = entry.campaigns.slice().sort(function(a,b){
+      var na = parseInt((a.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+      var nb = parseInt((b.campaign.match(/\((\d+)\)/)||[0,999])[1]);
+      return na-nb;
+    });
+    sorted.forEach(function(c) {
+      html += '<div style="border:1px solid #e8ddd0;border-radius:6px;margin-bottom:5px;overflow:hidden;background:#fffdf9;">';
+      html += '<div style="padding:4px 10px;background:#f5ece2;font-size:11px;font-weight:700;color:#3d2e1e;">'+esc(c.campaign)+':</div>';
+      html += '<div style="padding:3px 10px 5px;">';
+      if (c.what) html += '<div style="font-size:11px;color:#3d2e1e;line-height:1.4;padding:2px 0;"><span style="font-weight:600;color:#9c836a;margin-right:4px;">Change</span>'+esc(c.what)+'</div>';
+      if (c.rank) html += '<div style="font-size:11px;font-weight:600;color:#5a7a5a;padding:2px 0;"><span style="font-weight:600;color:#9c836a;margin-right:4px;">Rank</span>'+esc(c.rank)+'</div>';
+      if (c.why)  html += '<div style="font-size:11px;color:#6b5040;line-height:1.4;padding:2px 0;"><span style="font-weight:600;color:#9c836a;margin-right:4px;">Why</span>'+esc(c.why)+'</div>';
+      html += '</div></div>';
+    });
+  } else if (entry.raw) {
+    html += '<div style="font-size:12px;color:#3d2e1e;line-height:1.6;white-space:pre-wrap;">'+esc(entry.raw)+'</div>';
+  }
+
+  logEl.innerHTML = html;
+}
+
+
 function init() {
   if (!localStorage.getItem(SK_PORTS)) savePortfolios(DEFAULT_PORTFOLIOS);
   if (!localStorage.getItem('ppc_users')) saveUsers([{name:'Dorin', password:'rainmeadow2024', role:'admin', initial:'D'}]);
@@ -1766,7 +2061,11 @@ function init() {
   renderList();
 }
 
-if (sessionStorage.getItem('ppc_auth') === '1' && sessionStorage.getItem('ppc_user')) {
+if (isPopupMode()) {
+  // Popup window - no auth needed, reads from localStorage
+  document.addEventListener('DOMContentLoaded', initPopupMode);
+  if (document.readyState !== 'loading') initPopupMode();
+} else if (sessionStorage.getItem('ppc_auth') === '1' && sessionStorage.getItem('ppc_user')) {
   document.getElementById('login_screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   init();
