@@ -1153,10 +1153,15 @@ async function analyseAndSave() {
 
     var processed = data.content.map(function(b){ return b.text || ''; }).join('').trim();
 
-    // Convert to HTML paragraphs for clean display
+    // Convert to HTML — support **bold**, *italic*, line breaks
+    function fmtLine(text) {
+      return esc(text)
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*]+?)\*/g, '<em>$1</em>');
+    }
     var processedHtml = processed.split('\n').map(function(line) {
       if (!line.trim()) return '<br>';
-      return '<p style="margin:0 0 4px 0;">' + esc(line) + '</p>';
+      return '<p style="margin:0 0 4px 0;">' + fmtLine(line) + '</p>';
     }).join('');
 
     var dp = document.getElementById('log_date_picker');
