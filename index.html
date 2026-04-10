@@ -796,6 +796,9 @@ async function renderLogTab() {
       blockHtml += '<div style="background:#f0ece4;border-left:3px solid #c9956a;border-radius:0 5px 5px 0;padding:5px 10px;margin-bottom:5px;font-size:11px;color:#5a4230;line-height:1.5;">'+esc(e.snapshot)+'</div>';
     }
 
+    var rawContent = e.rawHtml || (e.raw ? '<pre style="white-space:pre-wrap;font-family:inherit;margin:0;">'+esc(e.raw)+'</pre>' : '');
+    var rawToggleId = 'raw_' + wkKey_.replace(/[^a-z0-9]/gi,'_');
+
     if (e.campaigns && e.campaigns.length) {
       var sc = e.campaigns.slice().sort(function(a,b){
         var na=parseInt((a.campaign.match(/\(\d+\)/)||['(999)'])[0].replace(/\D/g,''));
@@ -814,14 +817,17 @@ async function renderLogTab() {
         if (c.why  && ds.showWhy)  blockHtml += '<div style="font-size:11px;color:#6b5040;padding:1px 0;"><span style="font-weight:600;color:#9c836a;margin-right:4px;">Why</span>'+esc(c.why)+'</div>';
         blockHtml += '</div></div>';
       });
-    } else if (e.rawHtml) {
-      blockHtml += '<div style="font-size:12px;color:#3d2e1e;line-height:1.6;padding:2px 0;position:relative;">';
+      // Raw toggle for AI-processed entries
+      if (rawContent) {
+        blockHtml += '<div style="margin-top:4px;">';
+        blockHtml += '<button onclick="toggleRaw(\'' + rawToggleId + '\')" style="font-size:10px;color:#9c836a;background:none;border:none;cursor:pointer;padding:2px 0;">&#9654; Show raw notes</button>';
+        blockHtml += '<div id="'+rawToggleId+'" style="display:none;margin-top:4px;font-size:11px;color:#6b5040;background:#fdf5ee;border-radius:6px;padding:8px 10px;line-height:1.6;border:1px solid #e8ddd0;">'+rawContent+'</div>';
+        blockHtml += '</div>';
+      }
+    } else if (rawContent) {
+      blockHtml += '<div style="font-size:12px;color:#3d2e1e;line-height:1.6;padding:2px 0;">';
       if (admin) blockHtml += '<button onclick="editHistRaw(&quot;'+escA(wkKey_)+'&quot;)" style="float:right;font-size:10px;padding:1px 7px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;color:#5a4230;cursor:pointer;margin-left:6px;">Edit</button>';
-      blockHtml += e.rawHtml + '</div>';
-    } else if (e.raw) {
-      blockHtml += '<div style="font-size:12px;color:#3d2e1e;line-height:1.6;white-space:pre-wrap;padding:2px 0;position:relative;">';
-      if (admin) blockHtml += '<button onclick="editHistRaw(&quot;'+escA(wkKey_)+'&quot;)" style="float:right;font-size:10px;padding:1px 7px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;color:#5a4230;cursor:pointer;margin-left:6px;">Edit</button>';
-      blockHtml += esc(e.raw) + '</div>';
+      blockHtml += rawContent + '</div>';
     }
 
     if (!blockHtml) return;
@@ -2567,5 +2573,15 @@ async function organisePortfolioIdeas() {
   }
   btn.disabled = false; btn.textContent = 'Organise with Claude';
 }
+function toggleRaw(id) {
+  var el  = document.getElementById(id);
+  var btn = el ? el.previousElementSibling : null;
+  if (!el) return;
+  var hidden = el.style.display === 'none';
+  el.style.display  = hidden ? 'block' : 'none';
+  if (btn) btn.innerHTML = (hidden ? '&#9660; Hide raw notes' : '&#9654; Show raw notes');
+}
+
+
 
 </script></body></html>
