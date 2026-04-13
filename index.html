@@ -348,8 +348,11 @@ function escA(s) {
 }
 
 // =========================================================================
-// SUPABASE
+// SUPABASE — full shared storage (logs + key-value for everything else)
 // =========================================================================
+
+var _kvCache = {};      // in-memory cache for KV reads
+var _kvReady = false;   // true once we've loaded KV from Supabase
 
 function setSyncStatus(state, msg) {
   var el = document.getElementById('sync_indicator');
@@ -358,21 +361,106 @@ function setSyncStatus(state, msg) {
   el.className = 'sync-indicator' + (state ? ' ' + state : '');
 }
 
+var _supaHeaders = {
+  'Content-Type': 'application/json',
+  'apikey': SUPA_KEY,
+  'Authorization': 'Bearer ' + SUPA_KEY
+};
+
+// ── KV helpers ──────────────────────────────────────────────────────────
+
+async function kvGet(key) {
+  if (_kvCache[key] !== undefined) return _kvCache[key];
+  try {
+    var res = await fetch(SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(key),
+      { headers: _supaHeaders });
+    if (!res.ok) return null;
+    var rows = await res.json();
+    var val = rows.length ? rows[0].value : null;
+    _kvCache[key] = val;
+    return val;
+  } catch(e) { return null; }
+}
+
+async function kvSet(key, value) {
+  _kvCache[key] = value;
+  try {
+    await fetch(SUPA_URL + '/rest/v1/ppc_kv', {
+      method: 'POST',
+      headers: Object.assign({}, _supaHeaders, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify({ key: key, value: value })
+    });
+  } catch(e) { console.warn('kvSet failed', key, e); }
+}
+
+// Load all KV rows into cache at once (called on init)
+async function kvLoadAll() {
+  try {
+    var res = await fetch(SUPA_URL + '/rest/v1/ppc_kv?select=key,value',
+      { headers: _supaHeaders });
+    if (!res.ok) return;
+    var rows = await res.json();
+    rows.forEach(function(r) { _kvCache[r.key] = r.value; });
+    _kvReady = true;
+  } catch(e) { console.warn('kvLoadAll failed', e); }
+}
+
+// ── MIGRATION: push localStorage → Supabase (runs once if KV is empty) ──
+
+async function migrateFromLocalStorage() {
+  setSyncStatus('', 'migrating...');
+  var keys = [
+    SK_LOG, SK_META, SK_PORTS,
+    'ppc_ideas', 'ppc_ideas_instructions', 'ppc_display'
+  ];
+  // Also migrate per-portfolio keys
+  var ports = [];
+  try { ports = JSON.parse(localStorage.getItem(SK_PORTS) || '[]'); } catch(e) {}
+  DEFAULT_PORTFOLIOS.forEach(function(p) { ports.push(p); });
+  var seen = {};
+  ports.forEach(function(p) {
+    if (seen[p.name]) return; seen[p.name] = 1;
+    keys.push('ppc_pideas_' + p.name);
+    keys.push('ppc_pideas_instructions_' + p.name);
+    keys.push('ppc_reminders_' + p.name);
+  });
+
+  var toInsert = [];
+  keys.forEach(function(k) {
+    var v = localStorage.getItem(k);
+    if (v !== null) toInsert.push({ key: k, value: v });
+  });
+
+  if (!toInsert.length) { setSyncStatus('', ''); return; }
+
+  // Batch upsert
+  try {
+    await fetch(SUPA_URL + '/rest/v1/ppc_kv', {
+      method: 'POST',
+      headers: Object.assign({}, _supaHeaders, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify(toInsert)
+    });
+    toInsert.forEach(function(r) { _kvCache[r.key] = r.value; });
+    setSyncStatus('synced', 'migrated ✓');
+    setTimeout(function() { setSyncStatus('', ''); }, 4000);
+  } catch(e) {
+    setSyncStatus('', '');
+    console.warn('migration failed', e);
+  }
+}
+
+// ── LOGS (ppc_logs table — unchanged schema) ─────────────────────────────
+
 async function supabaseInsert(row) {
   setSyncStatus('', 'syncing...');
   try {
     var res = await fetch(SUPA_URL + '/rest/v1/ppc_logs', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPA_KEY,
-        'Authorization': 'Bearer ' + SUPA_KEY,
-        'Prefer': 'return=minimal'
-      },
+      headers: Object.assign({}, _supaHeaders, { 'Prefer': 'return=minimal' }),
       body: JSON.stringify(row)
     });
     if (!res.ok) throw new Error(await res.text());
-    setSyncStatus('synced', 'synced');
+    setSyncStatus('synced', 'synced ✓');
     setTimeout(function() { setSyncStatus('', ''); }, 3000);
   } catch(e) {
     setSyncStatus('', '');
@@ -384,7 +472,7 @@ async function supabaseFetchHistory(portfolio) {
   try {
     var res = await fetch(
       SUPA_URL + '/rest/v1/ppc_logs?portfolio=eq.' + encodeURIComponent(portfolio) + '&order=created_at.desc',
-      { headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY } }
+      { headers: _supaHeaders }
     );
     if (!res.ok) throw new Error();
     return await res.json();
@@ -395,7 +483,7 @@ async function supabaseFetchWeek(wk) {
   try {
     var res = await fetch(
       SUPA_URL + '/rest/v1/ppc_logs?week=eq.' + encodeURIComponent(wk) + '&order=created_at.asc',
-      { headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY } }
+      { headers: _supaHeaders }
     );
     if (!res.ok) throw new Error();
     return await res.json();
@@ -406,22 +494,28 @@ async function supabaseDeleteRow(id) {
   try {
     await fetch(SUPA_URL + '/rest/v1/ppc_logs?id=eq.' + id, {
       method: 'DELETE',
-      headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY }
+      headers: _supaHeaders
     });
   } catch(e) { console.warn('Delete failed:', e); }
 }
 
 // =========================================================================
-// PORTFOLIOS
+// PORTFOLIOS  — now stored in Supabase KV
 // =========================================================================
 
 function getPortfolios() {
-  try {
-    var s = JSON.parse(localStorage.getItem(SK_PORTS));
-    return s && s.length ? s : DEFAULT_PORTFOLIOS;
-  } catch(e) { return DEFAULT_PORTFOLIOS; }
+  var cached = _kvCache[SK_PORTS];
+  if (cached) { try { var p = JSON.parse(cached); if (p && p.length) return p; } catch(e){} }
+  // localStorage fallback while KV is loading
+  try { var s = JSON.parse(localStorage.getItem(SK_PORTS)); if (s && s.length) return s; } catch(e){}
+  return DEFAULT_PORTFOLIOS;
 }
-function savePortfolios(l) { localStorage.setItem(SK_PORTS, JSON.stringify(l)); }
+function savePortfolios(l) {
+  var v = JSON.stringify(l);
+  _kvCache[SK_PORTS] = v;
+  kvSet(SK_PORTS, v);
+  localStorage.setItem(SK_PORTS, v); // keep local copy for instant reads
+}
 
 function openAddModal() {
   document.getElementById('new_p_name').value = '';
@@ -450,9 +544,16 @@ function addPortfolio() {
 // =========================================================================
 
 function getMeta() {
+  var cached = _kvCache[SK_META];
+  if (cached) { try { return JSON.parse(cached); } catch(e){} }
   try { return JSON.parse(localStorage.getItem(SK_META) || '{}'); } catch(e) { return {}; }
 }
-function saveMeta(d) { localStorage.setItem(SK_META, JSON.stringify(d)); }
+function saveMeta(d) {
+  var v = JSON.stringify(d);
+  _kvCache[SK_META] = v;
+  kvSet(SK_META, v);
+  localStorage.setItem(SK_META, v);
+}
 function getPortfolioMeta(name) {
   return getMeta()[name] || {role:'', tacosMin:'', tacosMax:'', notes:'', instructionNotes:''};
 }
@@ -626,9 +727,16 @@ function shiftWeek(dir) {
 // =========================================================================
 
 function loadAll() {
+  var cached = _kvCache[SK_LOG];
+  if (cached) { try { return JSON.parse(cached); } catch(e){} }
   try { return JSON.parse(localStorage.getItem(SK_LOG) || '{}'); } catch(e) { return {}; }
 }
-function saveAll(d) { localStorage.setItem(SK_LOG, JSON.stringify(d)); }
+function saveAll(d) {
+  var v = JSON.stringify(d);
+  _kvCache[SK_LOG] = v;
+  kvSet(SK_LOG, v);
+  localStorage.setItem(SK_LOG, v);
+}
 function getEntry(name) { return (loadAll()[weekKey(weekOffset)] || {})[name] || null; }
 function setEntry(name, d) {
   var all = loadAll(), wk = weekKey(weekOffset);
@@ -1398,9 +1506,15 @@ async function analyseAndSave() {
 // =========================================================================
 
 function getReminders(name) {
-  try { return JSON.parse(localStorage.getItem('ppc_reminders_' + name) || '[]'); } catch(e) { return []; }
+  try { return JSON.parse(_kvCache['ppc_reminders_' + name] || localStorage.getItem('ppc_reminders_' + name) || '[]'); } catch(e) { return []; }
 }
-function saveReminders(name, list) { localStorage.setItem('ppc_reminders_' + name, JSON.stringify(list)); }
+function saveReminders(name, list) {
+  var k = 'ppc_reminders_' + name;
+  var v = JSON.stringify(list);
+  _kvCache[k] = v;
+  kvSet(k, v);
+  localStorage.setItem(k, v);
+}
 
 function deleteReminder(i) {
   var reminders = getReminders(selectedName);
@@ -1760,7 +1874,7 @@ async function exportCSV() {
 
 function getDisplaySettings() {
   try {
-    var d = JSON.parse(localStorage.getItem('ppc_display') || 'null');
+    var d = JSON.parse(_kvCache['ppc_display'] || localStorage.getItem('ppc_display') || 'null');
     if (d) return d;
   } catch(e) {}
   return {
@@ -1773,7 +1887,10 @@ function getDisplaySettings() {
   };
 }
 function saveDisplaySettings(d) {
-  localStorage.setItem('ppc_display', JSON.stringify(d));
+  var dv = JSON.stringify(d);
+  _kvCache['ppc_display'] = dv;
+  kvSet('ppc_display', dv);
+  localStorage.setItem('ppc_display', dv);
 }
 function applyDisplaySettings() {
   var d = getDisplaySettings();
@@ -2481,8 +2598,6 @@ function saveRawTabEntry(wkKey) {
 
 
 function init() {
-  if (!localStorage.getItem(SK_PORTS)) savePortfolios(DEFAULT_PORTFOLIOS);
-  if (!localStorage.getItem('ppc_users')) saveUsers(_COMPILED_USERS.slice());
   var admin = isAdmin();
   var cu    = getCurrentUser();
 
@@ -2504,7 +2619,22 @@ function init() {
   if (settingsBtn) settingsBtn.style.display = admin ? '' : 'none';
   if (ideasBtn)    ideasBtn.style.display    = admin ? '' : 'none';
 
-  renderList();
+  // Load all KV from Supabase, then migrate from localStorage if needed, then render
+  setSyncStatus('', 'loading...');
+  kvLoadAll().then(function() {
+    setSyncStatus('', '');
+    // If Supabase KV has no data yet but localStorage does, migrate automatically
+    if (!_kvCache[SK_META] && !_kvCache[SK_LOG]) {
+      var hasLocal = localStorage.getItem(SK_META) || localStorage.getItem(SK_LOG);
+      if (hasLocal) {
+        migrateFromLocalStorage().then(function() { renderList(); });
+        return;
+      }
+    }
+    // Bootstrap portfolios if needed
+    if (!_kvCache[SK_PORTS] && !localStorage.getItem(SK_PORTS)) savePortfolios(DEFAULT_PORTFOLIOS);
+    renderList();
+  });
 }
 
 if (isPopupMode()) {
@@ -2529,22 +2659,33 @@ if (isPopupMode()) {
 // =========================================================================
 
 function getIdeasInstructions() {
-  return localStorage.getItem('ppc_ideas_instructions') || '';
+  return _kvCache['ppc_ideas_instructions'] || localStorage.getItem('ppc_ideas_instructions') || '';
 }
 function saveIdeasInstructions(txt) {
+  _kvCache['ppc_ideas_instructions'] = txt;
+  kvSet('ppc_ideas_instructions', txt);
   localStorage.setItem('ppc_ideas_instructions', txt);
 }
 function getPortfolioIdeasInstructions(name) {
-  return localStorage.getItem('ppc_pideas_instructions_' + name) || '';
+  var k = 'ppc_pideas_instructions_' + name;
+  return _kvCache[k] || localStorage.getItem(k) || '';
 }
 function savePortfolioIdeasInstructions(name, txt) {
-  localStorage.setItem('ppc_pideas_instructions_' + name, txt);
+  var k = 'ppc_pideas_instructions_' + name;
+  _kvCache[k] = txt;
+  kvSet(k, txt);
+  localStorage.setItem(k, txt);
 }
 
 function getIdeas() {
-  try { return JSON.parse(localStorage.getItem('ppc_ideas') || '[]'); } catch(e) { return []; }
+  try { return JSON.parse(_kvCache['ppc_ideas'] || localStorage.getItem('ppc_ideas') || '[]'); } catch(e) { return []; }
 }
-function saveIdeas(list) { localStorage.setItem('ppc_ideas', JSON.stringify(list)); }
+function saveIdeas(list) {
+  var v = JSON.stringify(list);
+  _kvCache['ppc_ideas'] = v;
+  kvSet('ppc_ideas', v);
+  localStorage.setItem('ppc_ideas', v);
+}
 
 function showIdeasBank() {
   if (!isAdmin()) return;
@@ -2782,10 +2923,14 @@ async function askIdeas() {
 // =========================================================================
 
 function getPortfolioIdeas(name) {
-  try { return JSON.parse(localStorage.getItem('ppc_pideas_' + name) || '[]'); } catch(e) { return []; }
+  try { return JSON.parse(_kvCache['ppc_pideas_' + name] || localStorage.getItem('ppc_pideas_' + name) || '[]'); } catch(e) { return []; }
 }
 function savePortfolioIdeas(name, list) {
-  localStorage.setItem('ppc_pideas_' + name, JSON.stringify(list));
+  var k = 'ppc_pideas_' + name;
+  var v = JSON.stringify(list);
+  _kvCache[k] = v;
+  kvSet(k, v);
+  localStorage.setItem(k, v);
 }
 
 function renderPortfolioIdeasTab() {
