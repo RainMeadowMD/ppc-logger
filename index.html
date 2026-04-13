@@ -315,7 +315,7 @@ function doLogin() {
     document.getElementById('app').style.display = 'flex';
     init();
   } else {
-    document.getElementById('login_err').textContent = 'Incorrect password.';
+    document.getElementById('login_err').textContent = 'Incorrect password. Password is case-sensitive.';
   }
 }
 
@@ -490,7 +490,7 @@ function renderUserList() {
     html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0e8df;">';
     html += '<span class="user-badge" style="background:#e8ddd0;color:#5a4230;flex-shrink:0;">' + esc(u.initial) + '</span>';
     html += '<div style="flex:1;"><div style="font-size:13px;font-weight:500;color:#3d2e1e;">' + esc(u.name) + '</div>';
-    html += '<div style="font-size:11px;color:#9c836a;">Password: ' + esc(u.password) + '</div></div>';
+    html += '<div style="font-size:11px;color:#9c836a;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">Password: <strong style="color:#3d2e1e;font-family:monospace;font-size:12px;letter-spacing:1px;">'+esc(u.password)+'</strong><button onclick="editUserPassword(\''+escA(u.name)+'\')" style="font-size:10px;padding:1px 8px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;cursor:pointer;color:#5a4230;">Change</button></div></div>';
     html += '<button data-uname="' + escA(u.name) + '" class="remove-user-btn" style="font-size:11px;padding:3px 8px;border:1px solid #ddd2c4;border-radius:4px;background:#fffdf9;color:#b05030;cursor:pointer;">Remove</button>';
     html += '</div>';
   });
@@ -499,6 +499,60 @@ function renderUserList() {
     btn.addEventListener('click', function() { removeUser(this.getAttribute('data-uname')); });
   });
 }
+
+function togglePwReveal(name, pw) {
+  var span = document.getElementById('pw_mask_' + name);
+  var btn  = span ? span.nextElementSibling : null;
+  if (!span) return;
+  if (span.textContent === '••••••••') {
+    span.textContent = pw;
+    span.style.letterSpacing = 'normal';
+    if (btn) btn.textContent = 'Hide';
+    // Auto-hide after 5 seconds
+    setTimeout(function() {
+      if (span.textContent !== '••••••••') {
+        span.textContent = '••••••••';
+        span.style.letterSpacing = '2px';
+        if (btn) btn.textContent = 'Show';
+      }
+    }, 5000);
+  } else {
+    span.textContent = '••••••••';
+    span.style.letterSpacing = '2px';
+    if (btn) btn.textContent = 'Show';
+  }
+}
+
+
+function editUserPassword(name) {
+  var newPw = prompt('New password for ' + name + ':', '');
+  if (!newPw || !newPw.trim()) return;
+  newPw = newPw.trim();
+  var users = getUsers();
+  for (var i = 0; i < users.length; i++) {
+    if (users[i].name === name) { users[i].password = newPw; break; }
+  }
+  saveUsers(users);
+  // Re-render settings user list
+  var listEl = document.getElementById('user_list');
+  if (listEl) {
+    var html = '';
+    users.filter(function(u){ return u.role !== 'admin'; }).forEach(function(u) {
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0e8df;">';
+      html += '<span class="user-badge" style="background:#7a8fa6;">'+esc(u.initial||u.name[0])+'</span>';
+      html += '<div style="flex:1;"><div style="font-size:13px;font-weight:500;color:#3d2e1e;">'+esc(u.name)+'</div>';
+      html += '<div style="font-size:11px;color:#9c836a;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">Password: <strong style="color:#3d2e1e;font-family:monospace;font-size:12px;letter-spacing:1px;">'+esc(u.password)+'</strong><button onclick="editUserPassword(\''+escA(u.name)+'\')" style="font-size:10px;padding:1px 8px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;cursor:pointer;color:#5a4230;">Change</button></div></div>';
+      html += '<button data-uname="'+escA(u.name)+'" class="remove-user-btn" style="font-size:11px;padding:2px 8px;border:1px solid #ddd2c4;border-radius:4px;background:#fffdf9;color:#b05030;cursor:pointer;">Remove</button>';
+      html += '</div>';
+    });
+    listEl.innerHTML = html || '<div style="font-size:13px;color:#b0a090;">No assistants added yet.</div>';
+    listEl.querySelectorAll('.remove-user-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() { removeUser(this.getAttribute('data-uname')); });
+    });
+  }
+  alert('Password for ' + name + ' changed to: ' + newPw);
+}
+
 
 function addUser() {
   var name = document.getElementById('new_user_name').value.trim();
