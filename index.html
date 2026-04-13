@@ -280,15 +280,24 @@ var weekOffset = 0, selectedName = null, currentTab = 'log', filterText = '';
 // USERS & AUTH
 // =========================================================================
 
+var _COMPILED_USERS = [{"name": "Dorin", "password": "rainmeadow2024", "role": "admin", "initial": "D"}, {"name": "Kate", "password": "kate2024", "role": "assistant", "initial": "K"}];
+
 function getUsers() {
   try {
     var u = JSON.parse(localStorage.getItem('ppc_users') || 'null');
     if (u && u.length) return u;
   } catch(e) {}
-  return [{name:'Dorin', password:'rainmeadow2024', role:'admin', initial:'D'}];
+  return _COMPILED_USERS;
+}
+
+function syncCompiledUsers() {
+  // After saving users in Settings, update the compiled list too
+  // so new devices get the latest users baked in
+  _COMPILED_USERS = getUsers();
 }
 function saveUsers(users) {
   localStorage.setItem('ppc_users', JSON.stringify(users));
+  _COMPILED_USERS = users;
 }
 function getCurrentUser() {
   try { return JSON.parse(sessionStorage.getItem('ppc_user') || 'null'); } catch(e) { return null; }
