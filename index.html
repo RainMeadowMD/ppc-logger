@@ -284,8 +284,16 @@ var _COMPILED_USERS = [{"name": "Dorin", "password": "rainmeadow2024", "role": "
 
 function getUsers() {
   try {
-    var u = JSON.parse(localStorage.getItem('ppc_users') || 'null');
-    if (u && u.length) return u;
+    var stored = JSON.parse(localStorage.getItem('ppc_users') || 'null');
+    if (stored && stored.length) {
+      // Merge: ensure every _COMPILED_USERS entry exists in stored list
+      var names = {};
+      for (var i = 0; i < stored.length; i++) names[stored[i].name] = true;
+      for (var j = 0; j < _COMPILED_USERS.length; j++) {
+        if (!names[_COMPILED_USERS[j].name]) stored.push(_COMPILED_USERS[j]);
+      }
+      return stored;
+    }
   } catch(e) {}
   return _COMPILED_USERS;
 }
@@ -2474,7 +2482,7 @@ function saveRawTabEntry(wkKey) {
 
 function init() {
   if (!localStorage.getItem(SK_PORTS)) savePortfolios(DEFAULT_PORTFOLIOS);
-  if (!localStorage.getItem('ppc_users')) saveUsers([{name:'Dorin', password:'rainmeadow2024', role:'admin', initial:'D'}]);
+  if (!localStorage.getItem('ppc_users')) saveUsers(_COMPILED_USERS.slice());
   var admin = isAdmin();
   var cu    = getCurrentUser();
 
