@@ -752,11 +752,11 @@ function loadAll() {
   if (cached) { try { return JSON.parse(cached); } catch(e){} }
   try { return JSON.parse(localStorage.getItem(SK_LOG) || '{}'); } catch(e) { return {}; }
 }
-function saveAll(d) {
+async function saveAll(d) {
   var v = JSON.stringify(d);
   _kvCache[SK_LOG] = v;
-  kvSet(SK_LOG, v);
   localStorage.setItem(SK_LOG, v);
+  await kvSet(SK_LOG, v); // await so we know the write reached Supabase
 }
 function getEntry(name) { return (loadAll()[weekKey(weekOffset)] || {})[name] || null; }
 function setEntry(name, d) {
@@ -765,16 +765,28 @@ function setEntry(name, d) {
   all[wk][name] = d;
   saveAll(all);
 }
-// Like setEntry but fetches fresh data from Supabase first to avoid overwriting concurrent saves
+// Always fetches latest log from Supabase before merging — prevents overwriting concurrent saves
 async function setEntryFresh(name, d, wk) {
+  var all = {};
   try {
-    await kvGetFresh(SK_LOG); // updates _kvCache[SK_LOG] with latest from Supabase
-  } catch(e) {}
-  var all = loadAll();
+    // Bypass all caches — hit Supabase directly for the freshest data
+    var res = await fetch(SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(SK_LOG),
+      { headers: _supaHeaders });
+    if (res.ok) {
+      var rows = await res.json();
+      if (rows.length && rows[0].value) {
+        try { all = JSON.parse(rows[0].value); } catch(e) { all = {}; }
+        _kvCache[SK_LOG] = rows[0].value; // keep cache in sync
+      }
+    }
+  } catch(e) {
+    // Network failed — fall back to cache/localStorage so save still works
+    all = loadAll();
+  }
   var week = wk || weekKey(0);
   if (!all[week]) all[week] = {};
   all[week][name] = d;
-  saveAll(all);
+  await saveAll(all);
 }
 
 // =========================================================================
