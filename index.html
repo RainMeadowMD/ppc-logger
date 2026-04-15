@@ -386,6 +386,18 @@ async function kvGet(key) {
     return val;
   } catch(e) { return null; }
 }
+// Always hits Supabase directly, bypassing cache — used before saves to get latest data
+async function kvGetFresh(key) {
+  try {
+    var res = await fetch(SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(key),
+      { headers: _supaHeaders });
+    if (!res.ok) return null;
+    var rows = await res.json();
+    var val = rows.length ? rows[0].value : null;
+    if (val !== null) _kvCache[key] = val; // update cache with fresh value
+    return val;
+  } catch(e) { return null; }
+}
 
 async function kvSet(key, value) {
   _kvCache[key] = value;
@@ -751,6 +763,17 @@ function setEntry(name, d) {
   var all = loadAll(), wk = weekKey(weekOffset);
   if (!all[wk]) all[wk] = {};
   all[wk][name] = d;
+  saveAll(all);
+}
+// Like setEntry but fetches fresh data from Supabase first to avoid overwriting concurrent saves
+async function setEntryFresh(name, d, wk) {
+  try {
+    await kvGetFresh(SK_LOG); // updates _kvCache[SK_LOG] with latest from Supabase
+  } catch(e) {}
+  var all = loadAll();
+  var week = wk || weekKey(0);
+  if (!all[week]) all[week] = {};
+  all[week][name] = d;
   saveAll(all);
 }
 
@@ -1410,7 +1433,7 @@ function reEdit() {
   setTimeout(attachEditorListeners, 0);
 }
 
-function saveRaw(rawText, rawHtml) {
+async function saveRaw(rawText, rawHtml) {
   var editorEl = document.getElementById('rich_editor');
   var raw = rawText || (editorEl ? (editorEl.innerText || editorEl.textContent || '').trim() : '');
   var html = rawHtml || (editorEl ? editorEl.innerHTML : '');
@@ -1420,7 +1443,7 @@ function saveRaw(rawText, rawHtml) {
   var datePicker = document.getElementById('log_date_picker');
   var savedAt = datePicker && datePicker.value ? new Date(datePicker.value + 'T12:00:00').toISOString() : new Date().toISOString();
   var entry = {raw: raw, rawHtml: html, campaigns: null, savedAt: savedAt, savedBy: cu ? cu.initial : '?'};
-  setEntry(selectedName, entry);
+  await setEntryFresh(selectedName, entry, weekKey(weekOffset));
   supabaseInsert({
     week: weekLabel(weekOffset).replace(/\(.*\)/, '').trim(),
     portfolio: selectedName, asin: p.asin,
@@ -1491,7 +1514,7 @@ async function analyseAndSave() {
     var savedAt = dp && dp.value ? new Date(dp.value + 'T12:00:00').toISOString() : new Date().toISOString();
 
     var entry = {raw: raw, originalRaw: raw, rawHtml: processedHtml, snapshot: '', campaigns: null, savedAt: savedAt, savedBy: initial};
-    setEntry(selectedName, entry);
+    await setEntryFresh(selectedName, entry, weekKey(weekOffset));
 
     var wk = weekLabel(weekOffset).replace(/\(.*\)/, '').trim();
     await supabaseInsert({week: wk, portfolio: selectedName, asin: p ? p.asin : '',
@@ -2509,7 +2532,7 @@ async function popupSave(useAI) {
           : new Date().toISOString();
 
         var entry = {raw: raw, originalRaw: raw, rawHtml: processedHtml, snapshot: '', campaigns: null, savedAt: popSavedAt2, savedBy: initial};
-        var all = loadAll(); var wk = weekKey(0); if (!all[wk]) all[wk] = {}; all[wk][name] = entry; saveAll(all);
+        await setEntryFresh(name, entry, weekKey(0));
 
         statusEl.textContent = 'Saved + processed by AI.'; statusEl.style.color = '#2e7d32';
         editor.innerHTML = '';
@@ -2521,16 +2544,11 @@ async function popupSave(useAI) {
         statusEl.style.color = '#b05030';
       }
     }
-  } else if (useAI && !key) {
-    statusEl.textContent = 'No API key — saving as raw.';
-    statusEl.style.color = '#b05030';
   }
-  // Save raw
+  // Save raw (reached when: useAI=false, or no key, or no instructions, or AI errored)
   var popDatePicker = document.getElementById('popup_date_picker');
   var popSavedAt = popDatePicker && popDatePicker.value ? new Date(popDatePicker.value + 'T12:00:00').toISOString() : new Date().toISOString();
-  var all=loadAll(); var wk=weekKey(0); if(!all[wk])all[wk]={};
-  all[wk][name]={raw:raw,rawHtml:rawHtml,campaigns:null,savedAt:popSavedAt,savedBy:initial};
-  saveAll(all);
+  await setEntryFresh(name, {raw:raw,rawHtml:rawHtml,campaigns:null,savedAt:popSavedAt,savedBy:initial}, weekKey(0));
   statusEl.textContent='Saved.'; statusEl.style.color='#2e7d32';
   editor.innerHTML='';
   // Re-sync port selection
