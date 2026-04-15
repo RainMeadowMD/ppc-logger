@@ -282,6 +282,7 @@ var weekOffset = 0, selectedName = null, currentTab = 'log', filterText = '';
 // =========================================================================
 
 var _COMPILED_USERS = [{"name": "Dorin", "password": "rainmeadow2024", "role": "admin", "initial": "D"}, {"name": "Kate", "password": "kate2024", "role": "assistant", "initial": "K"}];
+var _COMPILED_API_KEY = ''; // set by admin in Settings; loaded from Supabase KV on init
 
 function getUsers() {
   try {
@@ -316,8 +317,9 @@ function isAdmin() {
   return u && u.role === 'admin';
 }
 function getApiKey() {
-  // Check KV cache first (populated from Supabase on load — works for all users including Kate)
-  if (_kvCache[SK_API]) return _kvCache[SK_API];
+  // Priority: in-memory compiled key → KV cache (Supabase) → localStorage fallback
+  if (_COMPILED_API_KEY) return _COMPILED_API_KEY;
+  if (_kvCache[SK_API]) { _COMPILED_API_KEY = _kvCache[SK_API]; return _COMPILED_API_KEY; }
   return localStorage.getItem('ppc_api_key') || '';
 }
 
@@ -583,6 +585,7 @@ function saveSettings() {
   var p = document.getElementById('set_admin_pw').value.trim();
   if (k) {
     localStorage.setItem('ppc_api_key', k);
+    _COMPILED_API_KEY = k; // update in-memory so current session uses it immediately
     kvSet(SK_API, k); // persist to Supabase so all users (incl. Kate) can use it
   }
   if (p) {
@@ -2715,6 +2718,17 @@ function init() {
   setSyncStatus('', 'loading...');
   kvLoadAll().then(function() {
     setSyncStatus('', '');
+    // Populate API key from Supabase KV into in-memory variable so all users can use it
+    if (_kvCache[SK_API]) {
+      _COMPILED_API_KEY = _kvCache[SK_API];
+    } else {
+      // Key not in Supabase yet — if admin has it locally, push it now (one-time bootstrap)
+      var localKey = localStorage.getItem('ppc_api_key');
+      if (localKey && isAdmin()) {
+        _COMPILED_API_KEY = localKey;
+        kvSet(SK_API, localKey);
+      }
+    }
     // If Supabase KV has no data yet but localStorage does, migrate automatically
     if (!_kvCache[SK_META] && !_kvCache[SK_LOG]) {
       var hasLocal = localStorage.getItem(SK_META) || localStorage.getItem(SK_LOG);
@@ -2735,6 +2749,8 @@ if (isPopupMode()) {
       if (_kvCache[SK_LOG])   localStorage.setItem(SK_LOG,   _kvCache[SK_LOG]);
       if (_kvCache[SK_PORTS]) localStorage.setItem(SK_PORTS, _kvCache[SK_PORTS]);
       if (_kvCache[SK_META])  localStorage.setItem(SK_META,  _kvCache[SK_META]);
+      // Make API key available to all users (incl. Kate) from Supabase KV
+      if (_kvCache[SK_API])   _COMPILED_API_KEY = _kvCache[SK_API];
       initPopupMode();
     }).catch(function() { initPopupMode(); });
   }
