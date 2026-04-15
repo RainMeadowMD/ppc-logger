@@ -281,7 +281,7 @@ var weekOffset = 0, selectedName = null, currentTab = 'log', filterText = '';
 // USERS & AUTH
 // =========================================================================
 
-var _COMPILED_USERS = [{"name": "Dorin", "password": "rainmeadow2024", "role": "admin", "initial": "D"}, {"name": "Kate", "password": "kate2024", "role": "assistant", "initial": "K"}];
+var _COMPILED_USERS = [{"name": "Dorin", "password": "rainmeadow2024", "role": "admin", "initial": "D"}, {"name": "Kathe", "password": "kate2024", "role": "assistant", "initial": "K"}];
 var _COMPILED_API_KEY = ''; // set by admin in Settings; loaded from Supabase KV on init
 
 function getUsers() {
@@ -402,11 +402,27 @@ async function kvGetFresh(key) {
 async function kvSet(key, value) {
   _kvCache[key] = value;
   try {
-    await fetch(SUPA_URL + '/rest/v1/ppc_kv', {
-      method: 'POST',
-      headers: Object.assign({}, _supaHeaders, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
-      body: JSON.stringify({ key: key, value: value })
-    });
+    // Try PATCH first (update existing row) — avoids duplicate-row accumulation
+    // that breaks getFreshAllLogs when merge-duplicates unique constraint is missing
+    var patchRes = await fetch(
+      SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(key),
+      {
+        method: 'PATCH',
+        headers: Object.assign({}, _supaHeaders, { 'Prefer': 'return=minimal' }),
+        body: JSON.stringify({ value: value })
+      }
+    );
+    // If PATCH matched 0 rows (204 but no rows updated, or 404), INSERT instead
+    var count = patchRes.headers.get('Content-Range') || '';
+    var didUpdate = patchRes.ok && count !== '*/0' && count !== '';
+    if (!didUpdate && patchRes.ok) {
+      // PATCH succeeded but may have updated 0 rows — do INSERT
+      await fetch(SUPA_URL + '/rest/v1/ppc_kv', {
+        method: 'POST',
+        headers: Object.assign({}, _supaHeaders, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+        body: JSON.stringify({ key: key, value: value })
+      });
+    }
   } catch(e) { console.warn('kvSet failed', key, e); }
 }
 
@@ -770,7 +786,7 @@ async function getFreshAllLogs() {
   var all = loadAll();
   var cacheWeekCount = Object.keys(all).length;
   try {
-    var res = await fetch(SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(SK_LOG),
+    var res = await fetch(SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(SK_LOG) + '&order=created_at.desc&limit=1',
       { headers: _supaHeaders });
     if (res.ok) {
       var rows = await res.json();
@@ -2760,14 +2776,15 @@ function editRawTabEntry(wkKey) {
   setTimeout(attachEditorListeners, 0);
 }
 
-function saveRawTabEntry(wkKey) {
+async function saveRawTabEntry(wkKey) {
   var editor = document.getElementById('raw_tab_editor');
   if (!editor) return;
-  var all = loadAll();
-  if (!all[wkKey] || !all[wkKey][selectedName]) return;
-  all[wkKey][selectedName].rawHtml = editor.innerHTML;
-  all[wkKey][selectedName].raw     = (editor.innerText || editor.textContent || '').trim();
-  saveAll(all);
+  await mutateEntryFresh(selectedName, wkKey, function(entry) {
+    if (!entry) return undefined;
+    entry.rawHtml = editor.innerHTML;
+    entry.raw     = (editor.innerText || editor.textContent || '').trim();
+    return entry;
+  });
   renderRawTab();
 }
 
