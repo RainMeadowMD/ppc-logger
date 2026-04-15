@@ -1074,7 +1074,6 @@ function openDatePicker() { openCustomPicker('log_date_display','log_date_picker
 function openPopupDatePicker() { openCustomPicker('popup_date_display','popup_date_picker'); }
 
 async function renderLogTab() {
-  var hasKey   = !!getApiKey();
   var admin    = isAdmin();
   var p        = getPortfolios().find(function(x){ return x.name === selectedName; });
   var meta     = getPortfolioMeta(selectedName);
@@ -1156,7 +1155,7 @@ async function renderLogTab() {
 
   // Bottom: always a fresh editor
   var today = new Date().toISOString().slice(0,10);
-  var aiBtn = (hasKey && hasInstr)
+  var aiBtn = hasInstr
     ? '<button class="btn btn-primary" id="save_ai_btn" onclick="analyseAndSave()" style="white-space:nowrap;">Save with AI</button>'
     : '';
   var bottomHtml = richEditorHTML('', 'rich_editor')
@@ -1169,7 +1168,7 @@ async function renderLogTab() {
     + '<div style="display:flex;gap:6px;align-items:center;">'
     + '<button class="btn" id="save_raw_btn" onclick="saveRaw()" style="white-space:nowrap;">Save raw</button>'
     + aiBtn
-    + (!hasInstr && hasKey ? '<span style="font-size:11px;color:#9c836a;">Add instructions to enable AI</span>' : '')
+    + (!hasInstr ? '<span style="font-size:11px;color:#9c836a;">Add instructions to enable AI</span>' : '')
     + '</div>'
     + '</div>'
     + '<div class="status" id="status_msg"></div>';
@@ -2460,6 +2459,12 @@ async function popupSave(useAI) {
   var p         = getPortfolios().find(function(x){return x.name===name;});
   var cu        = getCurrentUser();
   var initial   = cu ? cu.initial : '?';
+
+  if (useAI && !key) {
+    statusEl.textContent = 'No API key available — saving as raw.';
+    statusEl.style.color = '#b05030';
+    useAI = false; // fall through to raw save below
+  }
 
   if (useAI && key) {
     if (!instrText) {
