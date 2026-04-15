@@ -765,12 +765,11 @@ function setEntry(name, d) {
   saveAll(all);
 }
 // Always fetches latest log from Supabase before merging — prevents overwriting concurrent saves
-async function setEntryFresh(name, d, wk) {
-  // Start with whatever we have in cache as a safety baseline
+async function getFreshAllLogs() {
+  // Start with cache as fallback, but prefer Supabase every time for log writes
   var all = loadAll();
   var cacheWeekCount = Object.keys(all).length;
   try {
-    // Bypass all caches — hit Supabase directly for the freshest data
     var res = await fetch(SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(SK_LOG),
       { headers: _supaHeaders });
     if (res.ok) {
@@ -779,24 +778,44 @@ async function setEntryFresh(name, d, wk) {
         var fresh = {};
         try { fresh = JSON.parse(rows[0].value); } catch(e) {}
         var freshWeekCount = Object.keys(fresh).length;
-        // Always prefer Supabase data — it's the source of truth
         all = fresh;
         _kvCache[SK_LOG] = rows[0].value;
-        // Debug: show week counts in console
-        console.log('[setEntryFresh] cache had', cacheWeekCount, 'weeks, Supabase has', freshWeekCount, 'weeks');
+        console.log('[getFreshAllLogs] cache had', cacheWeekCount, 'weeks, Supabase has', freshWeekCount, 'weeks');
       } else {
-        console.log('[setEntryFresh] Supabase returned no rows for SK_LOG — using cache with', cacheWeekCount, 'weeks');
+        console.log('[getFreshAllLogs] Supabase returned no rows for SK_LOG — using cache with', cacheWeekCount, 'weeks');
       }
     } else {
-      console.warn('[setEntryFresh] Supabase fetch failed, status', res.status, '— using cache');
+      console.warn('[getFreshAllLogs] Supabase fetch failed, status', res.status, '— using cache');
     }
   } catch(e) {
-    console.warn('[setEntryFresh] Network error:', e.message, '— using cache');
+    console.warn('[getFreshAllLogs] Network error:', e.message, '— using cache');
   }
+  return all;
+}
+
+async function setEntryFresh(name, d, wk) {
+  var all = await getFreshAllLogs();
   var week = wk || weekKey(0);
   if (!all[week]) all[week] = {};
   all[week][name] = d;
   await saveAll(all);
+}
+
+async function mutateEntryFresh(name, wk, mutator) {
+  var all = await getFreshAllLogs();
+  var week = wk || weekKey(0);
+  if (!all[week]) all[week] = {};
+  var current = all[week][name] || null;
+  var next = mutator(current, all, week);
+  if (next === undefined) return false;
+  if (next === null) {
+    delete all[week][name];
+    if (!Object.keys(all[week]).length) delete all[week];
+  } else {
+    all[week][name] = next;
+  }
+  await saveAll(all);
+  return true;
 }
 
 // =========================================================================
@@ -1271,30 +1290,29 @@ function editHistEntry(wkKey, campIdx) {
   }
 }
 
-function saveHistEntry(wkKey, campIdx) {
-  var all   = loadAll();
-  if (!all[wkKey] || !all[wkKey][selectedName]) return;
-  var entry = all[wkKey][selectedName];
-  entry.campaigns[campIdx] = {
-    campaign: document.getElementById('eh_name').value.trim(),
-    what:     document.getElementById('eh_what').value.trim(),
-    rank:     document.getElementById('eh_rank').value.trim(),
-    why:      document.getElementById('eh_why').value.trim(),
-    watch:    entry.campaigns[campIdx].watch || [],
-    savedBy:  entry.campaigns[campIdx].savedBy || '?'
-  };
-  saveAll(all);
+async function saveHistEntry(wkKey, campIdx) {
+  await mutateEntryFresh(selectedName, wkKey, function(entry) {
+    if (!entry || !entry.campaigns || !entry.campaigns[campIdx]) return undefined;
+    entry.campaigns[campIdx] = {
+      campaign: document.getElementById('eh_name').value.trim(),
+      what:     document.getElementById('eh_what').value.trim(),
+      rank:     document.getElementById('eh_rank').value.trim(),
+      why:      document.getElementById('eh_why').value.trim(),
+      watch:    entry.campaigns[campIdx].watch || [],
+      savedBy:  entry.campaigns[campIdx].savedBy || '?'
+    };
+    return entry;
+  });
   renderLogTab();
 }
 
-function deleteHistEntry(wkKey) {
+async function deleteHistEntry(wkKey) {
   if (!confirm('Delete this entry from the Log view?')) return;
-  var all = loadAll();
-  if (all[wkKey] && all[wkKey][selectedName]) {
-    // Mark as log-deleted but keep data intact for Raw tab
-    all[wkKey][selectedName].logDeleted = true;
-    saveAll(all);
-  }
+  await mutateEntryFresh(selectedName, wkKey, function(entry) {
+    if (!entry) return undefined;
+    entry.logDeleted = true; // keep data intact for Raw tab
+    return entry;
+  });
   renderList();
   renderLogTab();
 }
@@ -1323,14 +1341,15 @@ function editHistRaw(wkKey) {
   }
 }
 
-function saveHistRaw(wkKey) {
+async function saveHistRaw(wkKey) {
   var editor = document.getElementById('hist_raw_editor');
   if (!editor) return;
-  var all = loadAll();
-  if (!all[wkKey] || !all[wkKey][selectedName]) return;
-  all[wkKey][selectedName].rawHtml = editor.innerHTML;
-  all[wkKey][selectedName].raw     = editor.innerText || editor.textContent || '';
-  saveAll(all);
+  await mutateEntryFresh(selectedName, wkKey, function(entry) {
+    if (!entry) return undefined;
+    entry.rawHtml = editor.innerHTML;
+    entry.raw     = editor.innerText || editor.textContent || '';
+    return entry;
+  });
   renderLogTab();
 }
 
@@ -1418,19 +1437,24 @@ function editCamp(i) {
 }
 
 
-function saveCamp(i) {
+async function saveCamp(i) {
   if (!isAdmin()) return;
-  var entry = getEntry(selectedName); if (!entry) return;
-  entry.campaigns[i] = {
-    campaign: document.getElementById('ec_name_' + i).value.trim(),
-    what:     document.getElementById('ec_what_' + i).value.trim(),
-    why:      document.getElementById('ec_why_'  + i).value.trim(),
-    rank:     document.getElementById('ec_rank_' + i).value.trim(),
-    watch:    [],
-    savedBy:  entry.campaigns[i].savedBy || '?'
-  };
-  setEntry(selectedName, entry);
-  document.getElementById('cb_' + i).outerHTML = campBlockHTML(entry.campaigns[i], i);
+  var updatedCamp = null;
+  var ok = await mutateEntryFresh(selectedName, weekKey(weekOffset), function(entry) {
+    if (!entry || !entry.campaigns || !entry.campaigns[i]) return undefined;
+    updatedCamp = {
+      campaign: document.getElementById('ec_name_' + i).value.trim(),
+      what:     document.getElementById('ec_what_' + i).value.trim(),
+      why:      document.getElementById('ec_why_'  + i).value.trim(),
+      rank:     document.getElementById('ec_rank_' + i).value.trim(),
+      watch:    entry.campaigns[i].watch || [],
+      savedBy:  entry.campaigns[i].savedBy || '?'
+    };
+    entry.campaigns[i] = updatedCamp;
+    return entry;
+  });
+  if (!ok || !updatedCamp) return;
+  document.getElementById('cb_' + i).outerHTML = campBlockHTML(updatedCamp, i);
 }
 
 
@@ -2478,18 +2502,19 @@ function popupEditCamp(wkKey, campIdx) {
   }
 }
 
-function savePopupCamp(wkKey, campIdx, portName) {
-  var all = loadAll();
-  if (!all[wkKey] || !all[wkKey][portName]) return;
-  all[wkKey][portName].campaigns[campIdx] = {
-    campaign: document.getElementById('peh_name').value.trim(),
-    what:     document.getElementById('peh_what').value.trim(),
-    rank:     document.getElementById('peh_rank').value.trim(),
-    why:      document.getElementById('peh_why').value.trim(),
-    watch:    all[wkKey][portName].campaigns[campIdx].watch || [],
-    savedBy:  all[wkKey][portName].campaigns[campIdx].savedBy || '?'
-  };
-  saveAll(all);
+async function savePopupCamp(wkKey, campIdx, portName) {
+  await mutateEntryFresh(portName, wkKey, function(entry) {
+    if (!entry || !entry.campaigns || !entry.campaigns[campIdx]) return undefined;
+    entry.campaigns[campIdx] = {
+      campaign: document.getElementById('peh_name').value.trim(),
+      what:     document.getElementById('peh_what').value.trim(),
+      rank:     document.getElementById('peh_rank').value.trim(),
+      why:      document.getElementById('peh_why').value.trim(),
+      watch:    entry.campaigns[campIdx].watch || [],
+      savedBy:  entry.campaigns[campIdx].savedBy || '?'
+    };
+    return entry;
+  });
   popupLoadLog();
   try { window.opener && window.opener.postMessage('ppc_refresh','*'); } catch(e){}
 }
