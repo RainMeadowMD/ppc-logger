@@ -248,6 +248,7 @@ const SUPA_KEY = 'sb_publishable_vSRfMm3vqt492e8evjvgTg_HihKrYZk';
 const SK_PORTS = 'ppc_portfolios_v1';
 const SK_META  = 'ppc_meta_v1';
 const SK_LOG   = 'ppc_log_v5';
+const SK_API   = 'ppc_api_key';
 
 const DEFAULT_PORTFOLIOS = [
   {name:'50BD',asin:'B0FHXVVNCV'},{name:'80sBD',asin:'B0GGMLFDVY'},
@@ -315,6 +316,8 @@ function isAdmin() {
   return u && u.role === 'admin';
 }
 function getApiKey() {
+  // Check KV cache first (populated from Supabase on load — works for all users including Kate)
+  if (_kvCache[SK_API]) return _kvCache[SK_API];
   return localStorage.getItem('ppc_api_key') || '';
 }
 
@@ -578,7 +581,10 @@ function showSettings() {
 function saveSettings() {
   var k = document.getElementById('set_api').value.trim();
   var p = document.getElementById('set_admin_pw').value.trim();
-  if (k) localStorage.setItem('ppc_api_key', k);
+  if (k) {
+    localStorage.setItem('ppc_api_key', k);
+    kvSet(SK_API, k); // persist to Supabase so all users (incl. Kate) can use it
+  }
   if (p) {
     var users = getUsers();
     for (var i = 0; i < users.length; i++) {
@@ -2097,6 +2103,46 @@ function onPopupDateChange(val) {
 }
 
 
+// =========================================================================
+// POPUP PORTFOLIO SEARCH HELPERS
+// =========================================================================
+
+function showPortfolioDropdown() {
+  filterPortfolioSearch(document.getElementById('popup_port_search').value);
+}
+
+function hidePortfolioDropdown() {
+  var dd = document.getElementById('popup_port_dropdown');
+  if (dd) dd.style.display = 'none';
+}
+
+function filterPortfolioSearch(q) {
+  var dd = document.getElementById('popup_port_dropdown');
+  if (!dd) return;
+  var names = window._popupPortNames || [];
+  var filtered = q.trim()
+    ? names.filter(function(n){ return n.toLowerCase().indexOf(q.toLowerCase()) !== -1; })
+    : names;
+  if (!filtered.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = filtered.map(function(n) {
+    return '<div onclick="selectPopupPort(this)" data-val="'+escA(n)+'"'
+      + ' style="padding:6px 10px;font-size:12px;color:#3d2e1e;cursor:pointer;"'
+      + ' onmouseover="this.style.background=&apos;#f5ece2&apos;"'
+      + ' onmouseout="this.style.background=&apos;&apos;">' + esc(n) + '</div>';
+  }).join('');
+  dd.style.display = 'block';
+}
+
+function selectPopupPort(el) {
+  var val = el.getAttribute('data-val');
+  var hidden = document.getElementById('popup_port');
+  var search = document.getElementById('popup_port_search');
+  if (hidden) hidden.value = val;
+  if (search) search.value = val;
+  hidePortfolioDropdown();
+  popupLoadLog();
+}
+
 function initPopupMode() {
   document.body.style.cssText = 'margin:0;padding:0;background:#f5efe6;font-family:system-ui,sans-serif;overflow:hidden;height:100vh;width:100vw;';
 
@@ -2131,8 +2177,19 @@ function initPopupMode() {
     + '</div>';
 
   // Selectors bar — portfolio only, no week picker
-  var selectorsBar = '<div style="display:flex;gap:6px;align-items:center;padding:7px 10px;background:#3d2e1e;flex-shrink:0;">'
-    + '<select id="popup_port" onchange="popupLoadLog()" style="flex:1;font-size:12px;padding:4px 6px;border:none;border-radius:5px;background:#5a4230;color:#fffdf9;font-family:inherit;">'+portOpts+'</select>'
+  // Store port names for the search dropdown
+  window._popupPortNames = sortedPorts.map(function(p){ return p.name; });
+
+  var selectorsBar = '<div style="display:flex;gap:6px;align-items:center;padding:7px 10px;background:#3d2e1e;flex-shrink:0;position:relative;">'
+    + '<input type="hidden" id="popup_port" value=""/>'
+    + '<div style="position:relative;flex:1;">'
+    + '<input type="text" id="popup_port_search" placeholder="Search portfolio..." autocomplete="off"'
+    + ' oninput="filterPortfolioSearch(this.value)"'
+    + ' onfocus="showPortfolioDropdown()"'
+    + ' onblur="setTimeout(hidePortfolioDropdown,180)"'
+    + ' style="width:100%;box-sizing:border-box;font-size:12px;padding:4px 8px;border:none;border-radius:5px;background:#5a4230;color:#fffdf9;font-family:inherit;outline:none;"/>'
+    + '<div id="popup_port_dropdown" style="display:none;position:absolute;top:calc(100% + 2px);left:0;right:0;background:#fff;border:1px solid #ddd2c4;border-radius:5px;max-height:220px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,.15);"></div>'
+    + '</div>'
     + '</div>';
 
   // History panel content area
@@ -2239,7 +2296,7 @@ function togglePopupLayout() {
     var p = document.getElementById('popup_port');
     var w = document.getElementById('popup_week');
     var e = document.getElementById('popup_editor');
-    if (p && portVal) { p.value = portVal; popupLoadLog(); }
+    if (p && portVal) { p.value = portVal; var ps2 = document.getElementById('popup_port_search'); if (ps2) ps2.value = portVal; popupLoadLog(); }
     if (w && weekVal) w.value = weekVal;
     if (e && savedContent) e.innerHTML = savedContent;
   }, 50);
@@ -2403,7 +2460,7 @@ async function popupSave(useAI) {
 
   if (useAI && key) {
     if (!instrText) {
-      statusEl.textContent = 'No instructions set for this portfolio — saving as raw.';
+      statusEl.textContent = 'No instructions set — saving as raw.';
       statusEl.style.color = '#b05030';
     } else {
       statusEl.textContent = 'Claude is processing…'; statusEl.style.color = '#9c836a';
@@ -2452,12 +2509,12 @@ async function popupSave(useAI) {
         popupLoadLog();
         return;
       } catch(e) {
-        statusEl.textContent = 'AI error: ' + e.message + ' — saving as raw instead.';
+        statusEl.textContent = 'AI error: ' + e.message + ' — saving as raw.';
         statusEl.style.color = '#b05030';
       }
     }
   } else if (useAI && !key) {
-    statusEl.textContent = 'No API key set — saving as raw.';
+    statusEl.textContent = 'No API key — saving as raw.';
     statusEl.style.color = '#b05030';
   }
   // Save raw
@@ -2674,15 +2731,12 @@ function init() {
 
 if (isPopupMode()) {
   function _launchPopup() {
-    // Must fetch KV data first so Kate's and Dorin's saved logs are both visible
     kvLoadAll().then(function() {
       if (_kvCache[SK_LOG])   localStorage.setItem(SK_LOG,   _kvCache[SK_LOG]);
       if (_kvCache[SK_PORTS]) localStorage.setItem(SK_PORTS, _kvCache[SK_PORTS]);
       if (_kvCache[SK_META])  localStorage.setItem(SK_META,  _kvCache[SK_META]);
       initPopupMode();
-    }).catch(function() {
-      initPopupMode(); // fall back if KV unreachable
-    });
+    }).catch(function() { initPopupMode(); });
   }
   document.addEventListener('DOMContentLoaded', _launchPopup);
   if (document.readyState !== 'loading') _launchPopup();
