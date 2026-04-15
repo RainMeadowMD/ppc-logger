@@ -766,8 +766,9 @@ function setEntry(name, d) {
 }
 // Always fetches latest log from Supabase before merging — prevents overwriting concurrent saves
 async function setEntryFresh(name, d, wk) {
-  // Start with whatever we have locally as a safety baseline
+  // Start with whatever we have in cache as a safety baseline
   var all = loadAll();
+  var cacheWeekCount = Object.keys(all).length;
   try {
     // Bypass all caches — hit Supabase directly for the freshest data
     var res = await fetch(SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(SK_LOG),
@@ -777,16 +778,20 @@ async function setEntryFresh(name, d, wk) {
       if (rows.length && rows[0].value) {
         var fresh = {};
         try { fresh = JSON.parse(rows[0].value); } catch(e) {}
-        // Only use fresh data if it has MORE week keys than our local copy
-        // This prevents an empty/corrupt Supabase response from wiping local data
-        if (Object.keys(fresh).length >= Object.keys(all).length) {
-          all = fresh;
-          _kvCache[SK_LOG] = rows[0].value;
-        }
+        var freshWeekCount = Object.keys(fresh).length;
+        // Always prefer Supabase data — it's the source of truth
+        all = fresh;
+        _kvCache[SK_LOG] = rows[0].value;
+        // Debug: show week counts in console
+        console.log('[setEntryFresh] cache had', cacheWeekCount, 'weeks, Supabase has', freshWeekCount, 'weeks');
+      } else {
+        console.log('[setEntryFresh] Supabase returned no rows for SK_LOG — using cache with', cacheWeekCount, 'weeks');
       }
+    } else {
+      console.warn('[setEntryFresh] Supabase fetch failed, status', res.status, '— using cache');
     }
   } catch(e) {
-    // Network failed — use local cache/localStorage
+    console.warn('[setEntryFresh] Network error:', e.message, '— using cache');
   }
   var week = wk || weekKey(0);
   if (!all[week]) all[week] = {};
@@ -1483,7 +1488,17 @@ async function analyseAndSave() {
   var meta      = getPortfolioMeta(selectedName);
   var instrText = (meta.instructionNotes || '').trim();
 
-  if (!key || !instrText) { saveRaw(raw, rawHtml); return; }
+  if (!key || !instrText) {
+    var stEl2 = document.getElementById('status_msg');
+    if (stEl2) {
+      stEl2.textContent = !key
+        ? 'No API key found — saving raw. Ask Dorin to open Settings and click Save.'
+        : 'No instructions set for this portfolio — saving raw.';
+      stEl2.className = 'status err';
+    }
+    saveRaw(raw, rawHtml);
+    return;
+  }
 
   var btn  = document.getElementById('save_ai_btn') || document.getElementById('save_btn');
   var stEl = document.getElementById('status_msg');
