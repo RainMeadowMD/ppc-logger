@@ -750,13 +750,12 @@ function shiftWeek(dir) {
 function loadAll() {
   var cached = _kvCache[SK_LOG];
   if (cached) { try { return JSON.parse(cached); } catch(e){} }
-  try { return JSON.parse(localStorage.getItem(SK_LOG) || '{}'); } catch(e) { return {}; }
+  return {}; // Don't fall back to localStorage — stale local data causes log deletion
 }
 async function saveAll(d) {
   var v = JSON.stringify(d);
   _kvCache[SK_LOG] = v;
-  localStorage.setItem(SK_LOG, v);
-  await kvSet(SK_LOG, v); // await so we know the write reached Supabase
+  await kvSet(SK_LOG, v); // Supabase is source of truth — no localStorage write
 }
 function getEntry(name) { return (loadAll()[weekKey(weekOffset)] || {})[name] || null; }
 function setEntry(name, d) {
@@ -767,7 +766,8 @@ function setEntry(name, d) {
 }
 // Always fetches latest log from Supabase before merging — prevents overwriting concurrent saves
 async function setEntryFresh(name, d, wk) {
-  var all = {};
+  // Start with whatever we have locally as a safety baseline
+  var all = loadAll();
   try {
     // Bypass all caches — hit Supabase directly for the freshest data
     var res = await fetch(SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(SK_LOG),
@@ -775,13 +775,18 @@ async function setEntryFresh(name, d, wk) {
     if (res.ok) {
       var rows = await res.json();
       if (rows.length && rows[0].value) {
-        try { all = JSON.parse(rows[0].value); } catch(e) { all = {}; }
-        _kvCache[SK_LOG] = rows[0].value; // keep cache in sync
+        var fresh = {};
+        try { fresh = JSON.parse(rows[0].value); } catch(e) {}
+        // Only use fresh data if it has MORE week keys than our local copy
+        // This prevents an empty/corrupt Supabase response from wiping local data
+        if (Object.keys(fresh).length >= Object.keys(all).length) {
+          all = fresh;
+          _kvCache[SK_LOG] = rows[0].value;
+        }
       }
     }
   } catch(e) {
-    // Network failed — fall back to cache/localStorage so save still works
-    all = loadAll();
+    // Network failed — use local cache/localStorage
   }
   var week = wk || weekKey(0);
   if (!all[week]) all[week] = {};
@@ -2764,9 +2769,10 @@ function init() {
         kvSet(SK_API, localKey);
       }
     }
-    // If Supabase KV has no data yet but localStorage does, migrate automatically
-    if (!_kvCache[SK_META] && !_kvCache[SK_LOG]) {
-      var hasLocal = localStorage.getItem(SK_META) || localStorage.getItem(SK_LOG);
+    // If Supabase KV has no metadata yet but localStorage does, migrate automatically
+    // Note: we only check SK_META (not SK_LOG) since localStorage log data can be stale
+    if (!_kvCache[SK_META]) {
+      var hasLocal = localStorage.getItem(SK_META);
       if (hasLocal) {
         migrateFromLocalStorage().then(function() { renderList(); });
         return;
@@ -2781,9 +2787,10 @@ function init() {
 if (isPopupMode()) {
   function _launchPopup() {
     kvLoadAll().then(function() {
-      if (_kvCache[SK_LOG])   localStorage.setItem(SK_LOG,   _kvCache[SK_LOG]);
+      // Sync portfolios and meta to localStorage for offline access
       if (_kvCache[SK_PORTS]) localStorage.setItem(SK_PORTS, _kvCache[SK_PORTS]);
       if (_kvCache[SK_META])  localStorage.setItem(SK_META,  _kvCache[SK_META]);
+      // Do NOT sync SK_LOG to localStorage — stale local log data causes entries to be wiped on save
       // Make API key available to all users (incl. Kate) from Supabase KV
       if (_kvCache[SK_API])   _COMPILED_API_KEY = _kvCache[SK_API];
       initPopupMode();
