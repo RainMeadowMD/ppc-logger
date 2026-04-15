@@ -2130,24 +2130,10 @@ function initPopupMode() {
     + '<button onclick="togglePopupLayout()" style="'+bs+'font-size:11px;background:#f0ece4;" title="Toggle layout">&#8644; Layout</button>'
     + '</div>';
 
-  // Selectors bar — searchable portfolio picker
-  var selectorsBar = '<div style="display:flex;flex-direction:column;gap:0;background:#3d2e1e;flex-shrink:0;position:relative;">' 
-    + '<div style="display:flex;gap:6px;align-items:center;padding:7px 10px;">' 
-    + '<div style="flex:1;position:relative;">' 
-    + '<input type="text" id="popup_port_search" placeholder="Search portfolio…" autocomplete="off" ' 
-    + 'oninput="filterPortfolioSearch(this.value)" ' 
-    + 'onfocus="showPortfolioDropdown()" ' 
-    + 'onblur="setTimeout(hidePortfolioDropdown, 180)" ' 
-    + 'style="width:100%;box-sizing:border-box;font-size:12px;padding:5px 10px;border:none;border-radius:5px;background:#5a4230;color:#fffdf9;font-family:inherit;outline:none;"' 
-    + ' />' 
-    + '<div id="popup_port_dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fffdf9;border:1px solid #e8ddd0;border-radius:6px;max-height:220px;overflow-y:auto;z-index:999;box-shadow:0 4px 16px rgba(61,46,30,.18);">' 
-    + sortedPorts.map(function(p){ return '<div class="pp-drop-item" data-name="'+escA(p.name)+'" onclick="selectPopupPort(this)" style="padding:7px 12px;font-size:12px;color:#3d2e1e;cursor:pointer;border-bottom:1px solid #f0e8df;">'+esc(p.name)+'</div>'; }).join('') 
-    + '</div>' 
-    + '</div>' 
-    + '<span id="popup_port_label" style="font-size:11px;color:rgba(255,253,249,.55);white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis;" title="">No portfolio</span>' 
-    + '</div>' 
-    + '</div>' 
-    + '<input type="hidden" id="popup_port" value="" />';
+  // Selectors bar — portfolio only, no week picker
+  var selectorsBar = '<div style="display:flex;gap:6px;align-items:center;padding:7px 10px;background:#3d2e1e;flex-shrink:0;">'
+    + '<select id="popup_port" onchange="popupLoadLog()" style="flex:1;font-size:12px;padding:4px 6px;border:none;border-radius:5px;background:#5a4230;color:#fffdf9;font-family:inherit;">'+portOpts+'</select>'
+    + '</div>';
 
   // History panel content area
   var histPanel = '<div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;">'
@@ -2253,14 +2239,7 @@ function togglePopupLayout() {
     var p = document.getElementById('popup_port');
     var w = document.getElementById('popup_week');
     var e = document.getElementById('popup_editor');
-    if (p && portVal) {
-      p.value = portVal;
-      var si = document.getElementById('popup_port_search');
-      var lb = document.getElementById('popup_port_label');
-      if (si) si.value = portVal;
-      if (lb) { lb.textContent = portVal; lb.title = portVal; }
-      popupLoadLog();
-    }
+    if (p && portVal) { p.value = portVal; popupLoadLog(); }
     if (w && weekVal) w.value = weekVal;
     if (e && savedContent) e.innerHTML = savedContent;
   }, 50);
@@ -2473,7 +2452,7 @@ async function popupSave(useAI) {
         popupLoadLog();
         return;
       } catch(e) {
-        statusEl.textContent = 'AI error: ' + e.message + ' — saved as raw instead.';
+        statusEl.textContent = 'AI error: ' + e.message + ' — saving as raw instead.';
         statusEl.style.color = '#b05030';
       }
     }
@@ -2491,13 +2470,7 @@ async function popupSave(useAI) {
   editor.innerHTML='';
   // Re-sync port selection
   var ps = document.getElementById('popup_port');
-  if (ps && !ps.value) {
-    ps.value = name;
-    var si2 = document.getElementById('popup_port_search');
-    var lb2 = document.getElementById('popup_port_label');
-    if (si2) si2.value = name;
-    if (lb2) { lb2.textContent = name; lb2.title = name; }
-  }
+  if (ps && !ps.value) ps.value = name;
   popupLoadLog();
   // Notify main app window to refresh
   try { window.opener && window.opener.postMessage('ppc_refresh','*'); } catch(e){}
@@ -2701,10 +2674,11 @@ function init() {
 
 if (isPopupMode()) {
   function _launchPopup() {
-    // Load KV data first so all history (including Kate's) is available
+    // Must fetch KV data first so Kate's and Dorin's saved logs are both visible
     kvLoadAll().then(function() {
       if (_kvCache[SK_LOG])   localStorage.setItem(SK_LOG,   _kvCache[SK_LOG]);
       if (_kvCache[SK_PORTS]) localStorage.setItem(SK_PORTS, _kvCache[SK_PORTS]);
+      if (_kvCache[SK_META])  localStorage.setItem(SK_META,  _kvCache[SK_META]);
       initPopupMode();
     }).catch(function() {
       initPopupMode(); // fall back if KV unreachable
@@ -3191,43 +3165,6 @@ function toggleRaw(id) {
 }
 
 
-
-// ── Popup portfolio search helpers ──────────────────────────────────────────
-function showPortfolioDropdown() {
-  var dd = document.getElementById('popup_port_dropdown');
-  if (dd) dd.style.display = '';
-}
-function hidePortfolioDropdown() {
-  var dd = document.getElementById('popup_port_dropdown');
-  if (dd) dd.style.display = 'none';
-}
-function filterPortfolioSearch(q) {
-  var dd = document.getElementById('popup_port_dropdown');
-  if (!dd) return;
-  dd.style.display = '';
-  q = (q || '').toLowerCase().trim();
-  dd.querySelectorAll('.pp-drop-item').forEach(function(item) {
-    var name = (item.getAttribute('data-name') || '').toLowerCase();
-    item.style.display = (!q || name.indexOf(q) !== -1) ? '' : 'none';
-  });
-}
-function selectPopupPort(el) {
-  var name = el.getAttribute('data-name') || '';
-  var hidden = document.getElementById('popup_port');
-  var searchInput = document.getElementById('popup_port_search');
-  var label = document.getElementById('popup_port_label');
-  if (hidden) hidden.value = name;
-  if (searchInput) searchInput.value = name;
-  if (label) { label.textContent = name || 'No portfolio'; label.title = name; }
-  filterPortfolioSearch('');
-  hidePortfolioDropdown();
-  var dd = document.getElementById('popup_port_dropdown');
-  if (dd) dd.querySelectorAll('.pp-drop-item').forEach(function(i) {
-    i.style.background = i === el ? '#f5ece2' : '';
-    i.style.fontWeight = i === el ? '600' : '';
-  });
-  popupLoadLog();
-}
 
 function filterPopupHist(q) {
   var logEl = document.getElementById('popup_log');
