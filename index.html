@@ -808,6 +808,13 @@ async function saveAll(d) {
   _kvCache[SK_LOG] = v;
   await kvSet(SK_LOG, v); // Supabase is source of truth — no localStorage write
   console.log('[saveAll] kvSet complete for SK_LOG');
+  // Flash sync indicator
+  var si = document.getElementById('sync_indicator');
+  if (si) {
+    si.textContent = '✓ synced';
+    si.style.color = '#5a7a5a';
+    setTimeout(function(){ si.textContent = ''; }, 3000);
+  }
 }
 function getEntry(name) {
   var v = (loadAll()[weekKey(weekOffset)] || {})[name] || null;
@@ -1266,10 +1273,12 @@ async function renderLogTab() {
   var p        = getPortfolios().find(function(x){ return x.name === selectedName; });
   var meta     = getPortfolioMeta(selectedName);
   var hasInstr = !!(meta.instructionNotes||'').trim();
-  var allLocal = loadAll();
   var ds       = getDisplaySettings();
 
   document.getElementById('tab_content').innerHTML = '<div style="font-size:13px;color:#9c836a;padding:20px 0;">Loading...</div>';
+
+  // Always fetch fresh from Supabase so both users see each other's saves
+  var allLocal = await getFreshAllLogs();
 
   // Reminders
   var reminders = getReminders(selectedName);
@@ -2215,8 +2224,8 @@ async function handleHistoryUpload(input) {
     if (raw && !byPortWk[key].raw) byPortWk[key].raw = raw;
   }
 
-  // Write to localStorage
-  var all = loadAll();
+  // Write merged data — fetch fresh from Supabase first to avoid overwrites
+  var all = await getFreshAllLogs();
   Object.keys(byPortWk).forEach(function(key) {
     var entry = byPortWk[key];
     // Find the weekKey (ISO date) that matches this week label
@@ -3078,6 +3087,15 @@ if (isPopupMode()) {
   document.getElementById('login_screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   init();
+  // Poll Supabase every 30s so both users see each other's saves live
+  setInterval(function() {
+    getFreshAllLogs().then(function() {
+      renderList();
+      // If log tab is open, re-render it too
+      if (currentTab === 'log' && selectedName) renderLogTab();
+    });
+  }, 30000);
+
   // Listen for popup refresh signal
   window.addEventListener('message', function(e) {
     if (e.data === 'ppc_refresh' && currentTab === 'log' && selectedName) {
