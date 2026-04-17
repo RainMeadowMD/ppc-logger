@@ -1622,7 +1622,7 @@ async function saveRaw(rawText, rawHtml) {
   var cu = getCurrentUser();
   var datePicker = document.getElementById('log_date_picker');
   var savedAt = datePicker && datePicker.value ? new Date(datePicker.value + 'T12:00:00').toISOString() : new Date().toISOString();
-  var entry = {raw: raw, rawHtml: html, campaigns: null, savedAt: savedAt, savedBy: cu ? cu.initial : '?'};
+  var entry = {raw: raw, originalRaw: raw, rawHtml: html, campaigns: null, savedAt: savedAt, savedBy: cu ? cu.initial : '?'};
   await setEntryFresh(selectedName, entry, weekKey(weekOffset));
   supabaseInsert({
     week: weekLabel(weekOffset).replace(/\(.*\)/, '').trim(),
@@ -2785,7 +2785,7 @@ async function popupSave(useAI) {
   // Save raw (reached when: useAI=false, or no key, or no instructions, or AI errored)
   var popDatePicker = document.getElementById('popup_date_picker');
   var popSavedAt = popDatePicker && popDatePicker.value ? new Date(popDatePicker.value + 'T12:00:00').toISOString() : new Date().toISOString();
-  await setEntryFresh(name, {raw:raw,rawHtml:rawHtml,campaigns:null,savedAt:popSavedAt,savedBy:initial}, weekKey(0));
+  await setEntryFresh(name, {raw:raw,originalRaw:raw,rawHtml:rawHtml,campaigns:null,savedAt:popSavedAt,savedBy:initial}, weekKey(0));
   statusEl.textContent='Saved.'; statusEl.style.color='#2e7d32';
   editor.innerHTML='';
   // Re-sync port selection
@@ -2878,11 +2878,25 @@ function renderRawTab() {
     }
     html += '</div>';
 
-    // Content — ALWAYS show e.raw (original dictation), never e.rawHtml (AI-processed)
-    // e.raw is set to the original dictated text in both saveRaw and analyseAndSave
+    // Content — ALWAYS show the original dictation text.
+    // Priority: originalRaw → raw → strip-tags fallback from rawHtml (legacy).
+    // This guarantees every entry surfaces SOMETHING in the Raw tab so we can
+    // verify what was dictated vs. what AI produced.
     html += '<div id="raw_entry_'+escA(wkKey_)+'" style="font-size:14px;line-height:1.8;color:#3d2e1e;">';
     var originalText = e.originalRaw || e.raw || '';
+    var reconstructed = false;
+    if (!originalText && e.rawHtml) {
+      // Legacy entry with only AI-processed HTML. Strip tags so we at least
+      // show the text content. Mark it clearly as reconstructed, not original.
+      var tmp = document.createElement('div');
+      tmp.innerHTML = e.rawHtml;
+      originalText = (tmp.innerText || tmp.textContent || '').trim();
+      if (originalText) reconstructed = true;
+    }
     if (originalText) {
+      if (reconstructed) {
+        html += '<div style="font-size:11px;color:#b0a090;font-style:italic;margin-bottom:6px;">(Legacy entry — original dictation was not preserved; showing AI-processed text stripped of formatting)</div>';
+      }
       html += '<div style="white-space:pre-wrap;">'+esc(originalText)+'</div>';
     } else if (e.campaigns && e.campaigns.length) {
       e.campaigns.forEach(function(c) {
@@ -2956,6 +2970,31 @@ async function saveRawTabEntry(wkKey) {
 function init() {
   var admin = isAdmin();
   var cu    = getCurrentUser();
+
+  // Reconcile stale session user against the canonical users list.
+  // Kathe's session was created back when her name was stored as "Kate",
+  // so sessionStorage still carries the old name even after the rename fix
+  // in getUsers(). Match on password (unique) first, then initial+role, and
+  // update sessionStorage if anything differs.
+  if (cu) {
+    try {
+      var canon = getUsers();
+      var match = null;
+      for (var ci = 0; ci < canon.length; ci++) {
+        if (canon[ci].password && cu.password && canon[ci].password === cu.password) { match = canon[ci]; break; }
+      }
+      if (!match) {
+        for (var cj = 0; cj < canon.length; cj++) {
+          if (canon[cj].initial === cu.initial && canon[cj].role === cu.role) { match = canon[cj]; break; }
+        }
+      }
+      if (match && (match.name !== cu.name || match.initial !== cu.initial || match.role !== cu.role)) {
+        cu = Object.assign({}, cu, { name: match.name, initial: match.initial, role: match.role });
+        sessionStorage.setItem('ppc_user', JSON.stringify(cu));
+        admin = isAdmin(); // re-evaluate in case role changed
+      }
+    } catch(_e) {}
+  }
 
   // Show current user name in topbar
   var userEl = document.getElementById('current_user_label');
