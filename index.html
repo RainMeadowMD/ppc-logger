@@ -2857,59 +2857,66 @@ function renderRawTab() {
 
   var found = false;
   wkKeys.forEach(function(wkKey_) {
-    var e = (allLocal[wkKey_] || {})[selectedName];
-    if (!e) return;
-    found = true;
+    var raw_ = (allLocal[wkKey_] || {})[selectedName];
+    if (!raw_) return;
+    // Entries are stored as arrays by setEntryFresh (multiple saves per week).
+    // Normalize to array and render each entry separately so every raw
+    // dictation is visible and independently editable/deletable.
+    var entries = Array.isArray(raw_) ? raw_ : [raw_];
 
-    var dateStr = e.savedAt
-      ? new Date(e.savedAt).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
-      : wkKey_;
+    entries.forEach(function(e, idx) {
+      if (!e) return;
+      found = true;
 
-    html += '<div style="margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid #e8ddd0;">';
+      var dateStr = e.savedAt
+        ? new Date(e.savedAt).toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
+        : wkKey_;
+      if (e.savedBy) dateStr += ' [' + e.savedBy + ']';
 
-    // Date header + Edit button
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
-    html += '<div style="font-size:12px;font-weight:600;color:#9c836a;text-transform:uppercase;letter-spacing:.06em;">'+esc(dateStr)+'</div>';
-    if (admin) {
-      html += '<div style="display:flex;gap:6px;">';
-      html += '<button onclick="editRawTabEntry(&quot;'+escA(wkKey_)+'&quot;)" style="font-size:11px;padding:2px 10px;border:1px solid #ddd2c4;border-radius:4px;background:#fffdf9;color:#5a4230;cursor:pointer;">Edit</button>';
-      html += '<button onclick="deleteRawTabEntry(&quot;'+escA(wkKey_)+'&quot;)" style="font-size:11px;padding:2px 10px;border:1px solid #ddd2c4;border-radius:4px;background:#fffdf9;color:#b05030;cursor:pointer;">Delete</button>';
-      html += '</div>';
-    }
-    html += '</div>';
+      html += '<div style="margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid #e8ddd0;">';
 
-    // Content — ALWAYS show the original dictation text.
-    // Priority: originalRaw → raw → strip-tags fallback from rawHtml (legacy).
-    // This guarantees every entry surfaces SOMETHING in the Raw tab so we can
-    // verify what was dictated vs. what AI produced.
-    html += '<div id="raw_entry_'+escA(wkKey_)+'" style="font-size:14px;line-height:1.8;color:#3d2e1e;">';
-    var originalText = e.originalRaw || e.raw || '';
-    var reconstructed = false;
-    if (!originalText && e.rawHtml) {
-      // Legacy entry with only AI-processed HTML. Strip tags so we at least
-      // show the text content. Mark it clearly as reconstructed, not original.
-      var tmp = document.createElement('div');
-      tmp.innerHTML = e.rawHtml;
-      originalText = (tmp.innerText || tmp.textContent || '').trim();
-      if (originalText) reconstructed = true;
-    }
-    if (originalText) {
-      if (reconstructed) {
-        html += '<div style="font-size:11px;color:#b0a090;font-style:italic;margin-bottom:6px;">(Legacy entry — original dictation was not preserved; showing AI-processed text stripped of formatting)</div>';
+      // Date header + Edit/Delete buttons (per-entry, keyed by wkKey+idx)
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
+      html += '<div style="font-size:12px;font-weight:600;color:#9c836a;text-transform:uppercase;letter-spacing:.06em;">'+esc(dateStr)+'</div>';
+      if (admin) {
+        html += '<div style="display:flex;gap:6px;">';
+        html += '<button onclick="editRawTabEntry(&quot;'+escA(wkKey_)+'&quot;,'+idx+')" style="font-size:11px;padding:2px 10px;border:1px solid #ddd2c4;border-radius:4px;background:#fffdf9;color:#5a4230;cursor:pointer;">Edit</button>';
+        html += '<button onclick="deleteRawTabEntry(&quot;'+escA(wkKey_)+'&quot;,'+idx+')" style="font-size:11px;padding:2px 10px;border:1px solid #ddd2c4;border-radius:4px;background:#fffdf9;color:#b05030;cursor:pointer;">Delete</button>';
+        html += '</div>';
       }
-      html += '<div style="white-space:pre-wrap;">'+esc(originalText)+'</div>';
-    } else if (e.campaigns && e.campaigns.length) {
-      e.campaigns.forEach(function(c) {
-        html += '<p style="margin:0 0 8px 0;"><strong>'+esc(c.campaign)+'</strong>';
-        if (c.what) html += ' — '+esc(c.what);
-        if (c.why)  html += '. '+esc(c.why);
-        html += '</p>';
-      });
-    } else {
-      html += '<div style="font-size:12px;color:#b0a090;font-style:italic;">(No original text available — entry was saved before this feature)</div>';
-    }
-    html += '</div>';
-    html += '</div>';
+      html += '</div>';
+
+      // Content — ALWAYS show the original dictation text.
+      // Priority: originalRaw → raw → strip-tags fallback from rawHtml (legacy).
+      html += '<div id="raw_entry_'+escA(wkKey_)+'_'+idx+'" style="font-size:14px;line-height:1.8;color:#3d2e1e;">';
+      var originalText = e.originalRaw || e.raw || '';
+      var reconstructed = false;
+      if (!originalText && e.rawHtml) {
+        // Legacy entry with only AI-processed HTML. Strip tags so we at least
+        // show the text content. Mark it clearly as reconstructed.
+        var tmp = document.createElement('div');
+        tmp.innerHTML = e.rawHtml;
+        originalText = (tmp.innerText || tmp.textContent || '').trim();
+        if (originalText) reconstructed = true;
+      }
+      if (originalText) {
+        if (reconstructed) {
+          html += '<div style="font-size:11px;color:#b0a090;font-style:italic;margin-bottom:6px;">(Legacy entry — original dictation was not preserved; showing AI-processed text stripped of formatting)</div>';
+        }
+        html += '<div style="white-space:pre-wrap;">'+esc(originalText)+'</div>';
+      } else if (e.campaigns && e.campaigns.length) {
+        e.campaigns.forEach(function(c) {
+          html += '<p style="margin:0 0 8px 0;"><strong>'+esc(c.campaign)+'</strong>';
+          if (c.what) html += ' — '+esc(c.what);
+          if (c.why)  html += '. '+esc(c.why);
+          html += '</p>';
+        });
+      } else {
+        html += '<div style="font-size:12px;color:#b0a090;font-style:italic;">(No original text available — entry was saved before this feature)</div>';
+      }
+      html += '</div>';
+      html += '</div>';
+    });
   });
 
   if (!found) {
@@ -2920,48 +2927,72 @@ function renderRawTab() {
   document.getElementById('tab_content').innerHTML = html;
 }
 
-function deleteRawTabEntry(wkKey) {
+function deleteRawTabEntry(wkKey, idx) {
   if (!confirm('Delete this raw entry permanently?\n\nThis will remove it from BOTH the Log tab and Raw tab and cannot be undone.')) return;
   if (!confirm('Are you absolutely sure? This raw log will be gone forever.')) return;
-  var all = loadAll();
-  if (all[wkKey] && all[wkKey][selectedName]) {
-    delete all[wkKey][selectedName];
-    if (Object.keys(all[wkKey]).length === 0) delete all[wkKey];
-    saveAll(all);
-  }
-  renderList();
-  renderRawTab();
+  // Entries are stored as arrays — remove only the targeted index, not the
+  // whole week's bucket (which would wipe every save in the current week).
+  mutateEntryFresh(selectedName, wkKey, function(arr) {
+    if (!arr || !arr.length) return undefined;
+    if (typeof idx !== 'number' || idx < 0 || idx >= arr.length) return undefined;
+    arr.splice(idx, 1);
+    if (!arr.length) return null; // mutateEntryFresh: null → delete the key
+    return arr;
+  }).then(function() {
+    renderList();
+    renderRawTab();
+  });
 }
 
 
-function editRawTabEntry(wkKey) {
+function editRawTabEntry(wkKey, idx) {
   var all   = loadAll();
-  var e     = (all[wkKey]||{})[selectedName];
+  var raw_  = (all[wkKey]||{})[selectedName];
+  if (!raw_) return;
+  var entries = Array.isArray(raw_) ? raw_ : [raw_];
+  var e = entries[idx];
   if (!e) return;
-  var content = e.rawHtml || esc(e.raw||'');
+
+  // Prefer the original dictation when loading into the editor so edits
+  // operate on the raw text, not the AI-processed HTML.
+  var content;
+  if (e.originalRaw || e.raw) {
+    content = esc(e.originalRaw || e.raw);
+  } else if (e.rawHtml) {
+    content = e.rawHtml;
+  } else {
+    content = '';
+  }
 
   // Replace the content area with an editor
-  var entryEl = document.getElementById('raw_entry_'+wkKey);
+  var entryEl = document.getElementById('raw_entry_'+wkKey+'_'+idx);
   if (!entryEl) return;
 
   var editorDiv = document.createElement('div');
   editorDiv.innerHTML = richEditorHTML(content, 'raw_tab_editor')
     + '<div style="display:flex;gap:6px;margin-top:6px;">'
-    + '<button class="btn-save-camp" onclick="saveRawTabEntry(&quot;'+escA(wkKey)+'&quot;)">Save</button>'
+    + '<button class="btn-save-camp" onclick="saveRawTabEntry(&quot;'+escA(wkKey)+'&quot;,'+idx+')">Save</button>'
     + '<button class="btn-cancel-camp" onclick="renderRawTab()">Cancel</button>'
     + '</div>';
   entryEl.parentNode.replaceChild(editorDiv, entryEl);
   setTimeout(attachEditorListeners, 0);
 }
 
-async function saveRawTabEntry(wkKey) {
+async function saveRawTabEntry(wkKey, idx) {
   var editor = document.getElementById('raw_tab_editor');
   if (!editor) return;
-  await mutateEntryFresh(selectedName, wkKey, function(entry) {
-    if (!entry) return undefined;
-    entry.rawHtml = editor.innerHTML;
-    entry.raw     = (editor.innerText || editor.textContent || '').trim();
-    return entry;
+  await mutateEntryFresh(selectedName, wkKey, function(arr) {
+    if (!arr || !arr.length) return undefined;
+    if (typeof idx !== 'number' || idx < 0 || idx >= arr.length) return undefined;
+    var text = (editor.innerText || editor.textContent || '').trim();
+    // Update raw + rawHtml for the targeted entry only; preserve originalRaw
+    // so we always keep a record of the very first dictation.
+    arr[idx] = Object.assign({}, arr[idx], {
+      raw:     text,
+      rawHtml: editor.innerHTML,
+      originalRaw: arr[idx].originalRaw || text
+    });
+    return arr;
   });
   renderRawTab();
 }
