@@ -798,13 +798,23 @@ function loadAll() {
 async function saveAll(d) {
   var v = JSON.stringify(d);
   var weekCount = Object.keys(d).length;
-  var totalEntries = Object.keys(d).reduce(function(sum, wk) { return sum + Object.keys(d[wk]).length; }, 0);
+  var totalEntries = Object.keys(d).reduce(function(sum, wk) {
+    return sum + Object.keys(d[wk]).reduce(function(s2, port) {
+      var v = d[wk][port];
+      return s2 + (Array.isArray(v) ? v.length : 1);
+    }, 0);
+  }, 0);
   console.log('[saveAll] Writing', weekCount, 'week(s),', totalEntries, 'total entries. Weeks:', Object.keys(d));
   _kvCache[SK_LOG] = v;
   await kvSet(SK_LOG, v); // Supabase is source of truth — no localStorage write
   console.log('[saveAll] kvSet complete for SK_LOG');
 }
-function getEntry(name) { return (loadAll()[weekKey(weekOffset)] || {})[name] || null; }
+function getEntry(name) {
+  var v = (loadAll()[weekKey(weekOffset)] || {})[name] || null;
+  if (!v) return null;
+  if (Array.isArray(v)) return v[v.length - 1]; // most recent
+  return v;
+}
 function setEntry(name, d) {
   var all = loadAll(), wk = weekKey(weekOffset);
   if (!all[wk]) all[wk] = {};
@@ -851,7 +861,16 @@ async function setEntryFresh(name, d, wk) {
   var all = await getFreshAllLogs();
   var week = wk || weekKey(0);
   if (!all[week]) all[week] = {};
-  all[week][name] = d;
+  // Support both old single-entry and new array format
+  var existing = all[week][name];
+  if (!existing) {
+    all[week][name] = [d];
+  } else if (Array.isArray(existing)) {
+    existing.push(d);
+  } else {
+    // Migrate old single entry to array, then append
+    all[week][name] = [existing, d];
+  }
   await saveAll(all);
 }
 
@@ -860,6 +879,8 @@ async function mutateEntryFresh(name, wk, mutator) {
   var week = wk || weekKey(0);
   if (!all[week]) all[week] = {};
   var current = all[week][name] || null;
+  // Normalise to array
+  if (current && !Array.isArray(current)) current = [current];
   var next = mutator(current, all, week);
   if (next === undefined) return false;
   if (next === null) {
@@ -870,6 +891,51 @@ async function mutateEntryFresh(name, wk, mutator) {
   }
   await saveAll(all);
   return true;
+}
+
+// Edit a specific entry by index within the array for a given week
+function editHistEntryByIdx(wkKey, idx) {
+  if (!isAdmin()) return;
+  var all = loadAll();
+  var raw_ = (all[wkKey] || {})[selectedName];
+  var entries = Array.isArray(raw_) ? raw_ : (raw_ ? [raw_] : []);
+  var e = entries[idx];
+  if (!e) return;
+  var content = e.rawHtml || (e.raw ? esc(e.raw) : '');
+  document.getElementById('tab_content').innerHTML =
+    '<div class="section-label" style="margin-bottom:8px;">Edit log entry</div>'
+    + richEditorHTML(content)
+    + '<div class="btn-row" style="margin-top:8px;">'
+    + '<button class="btn btn-primary" onclick="saveHistEntryByIdx(&quot;'+escA(wkKey)+'&quot;,'+idx+')">Save</button>'
+    + '<button class="btn" onclick="renderLogTab()">Cancel</button></div>'
+    + '<div class="status" id="status_msg"></div>';
+  setTimeout(attachEditorListeners, 0);
+}
+
+async function saveHistEntryByIdx(wkKey, idx) {
+  var editorEl = document.getElementById('rich_editor');
+  var raw  = editorEl ? (editorEl.innerText || editorEl.textContent || '').trim() : '';
+  var html = editorEl ? editorEl.innerHTML : '';
+  var ok = await mutateEntryFresh(selectedName, wkKey, function(entries) {
+    var arr = entries || [];
+    if (!arr[idx]) return undefined;
+    arr[idx] = Object.assign({}, arr[idx], {raw: raw, rawHtml: html});
+    return arr;
+  });
+  if (ok) renderLogTab();
+}
+
+// Delete (hide) a specific entry by index
+async function deleteHistEntryByIdx(wkKey, idx) {
+  var ok = await mutateEntryFresh(selectedName, wkKey, function(entries) {
+    var arr = entries || [];
+    if (!arr[idx]) return undefined;
+    arr[idx] = Object.assign({}, arr[idx], {logDeleted: true});
+    // If all entries deleted, remove the whole key
+    if (arr.every(function(e) { return e.logDeleted; })) return null;
+    return arr;
+  });
+  if (ok) renderLogTab();
 }
 
 // =========================================================================
@@ -887,10 +953,14 @@ function renderList() {
   var lastLogged = {};
   Object.keys(all).forEach(function(wkKey) {
     Object.keys(all[wkKey]).forEach(function(name) {
-      var e = all[wkKey][name];
-      if (!e) return;
-      var d = e.savedAt ? new Date(e.savedAt) : new Date(wkKey);
-      if (!lastLogged[name] || d > lastLogged[name]) lastLogged[name] = d;
+      var raw_ = all[wkKey][name];
+      if (!raw_) return;
+      var entries_ = Array.isArray(raw_) ? raw_ : [raw_];
+      entries_.forEach(function(e) {
+        if (e.logDeleted) return;
+        var d = e.savedAt ? new Date(e.savedAt) : new Date(wkKey);
+        if (!lastLogged[name] || d > lastLogged[name]) lastLogged[name] = d;
+      });
     });
   });
 
@@ -1220,53 +1290,54 @@ async function renderLogTab() {
   var pastHtml = '';
 
   localWkKeys.forEach(function(wkKey_) {
-    var e = (allLocal[wkKey_] || {})[selectedName];
-    if (!e) return;
-    if (e.logDeleted) return; // hidden from Log tab but preserved in Raw tab
+    var raw_ = (allLocal[wkKey_] || {})[selectedName];
+    if (!raw_) return;
+    // Normalise to array (support both old single-object and new array format)
+    var entries = Array.isArray(raw_) ? raw_ : [raw_];
 
-    var dateStr = e.savedAt
-      ? new Date(e.savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'})
-      : wkKey_;
+    entries.forEach(function(e, eIdx) {
+      if (e.logDeleted) return;
 
-    var blockHtml = '';
+      var dateStr = e.savedAt
+        ? new Date(e.savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'})
+        : wkKey_;
+      var savedByStr = e.savedBy ? ' <span style="font-size:9px;color:#b0a090;">['+esc(e.savedBy)+']</span>' : '';
 
-    if (e.snapshot && ds.showSnapshot) {
-      blockHtml += '<div style="background:#f0ece4;border-left:3px solid #c9956a;border-radius:0 5px 5px 0;padding:5px 10px;margin-bottom:5px;font-size:11px;color:#5a4230;line-height:1.5;">'+esc(e.snapshot)+'</div>';
-    }
+      var blockHtml = '';
 
-    var rawContent = e.rawHtml || (e.raw ? '<pre style="white-space:pre-wrap;font-family:inherit;margin:0;">'+esc(e.raw)+'</pre>' : '');
-    var rawToggleId = 'raw_' + wkKey_.replace(/[^a-z0-9]/gi,'_');
+      if (e.snapshot && ds.showSnapshot) {
+        blockHtml += '<div style="background:#f0ece4;border-left:3px solid #c9956a;border-radius:0 5px 5px 0;padding:5px 10px;margin-bottom:5px;font-size:11px;color:#5a4230;line-height:1.5;">'+esc(e.snapshot)+'</div>';
+      }
 
-    // Always prefer raw text display. Fall back to campaign cards only if no raw text exists.
-    if (rawContent) {
-      // Show raw text — same for all entries regardless of whether campaigns exist
-      var editBtn  = admin ? '<button onclick="editHistRaw(&quot;'+escA(wkKey_)+'&quot;)" style="font-size:10px;padding:1px 7px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;color:#5a4230;cursor:pointer;margin-right:4px;">Edit</button>' : '';
-      var delBtn   = admin ? '<button onclick="deleteHistEntry(&quot;'+escA(wkKey_)+'&quot;)" style="font-size:10px;padding:1px 7px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;color:#b05030;cursor:pointer;" title="Hide from Log tab (preserved in Raw tab)">Hide</button>' : '';
-      blockHtml += '<div style="font-size:13px;color:#3d2e1e;line-height:1.7;padding:2px 0;"><div style="float:right;display:flex;gap:4px;margin-left:8px;">' + editBtn + delBtn + '</div>' + rawContent + '</div>';
-    } else if (e.campaigns && e.campaigns.length) {
-      // No raw text — render campaigns as plain readable text (no cards)
-      var sc = e.campaigns.slice().sort(function(a,b){
-        var na=parseInt((a.campaign.match(/\(\d+\)/)||['(999)'])[0].replace(/\D/g,''));
-        var nb=parseInt((b.campaign.match(/\(\d+\)/)||['(999)'])[0].replace(/\D/g,''));
-        return na-nb;
-      });
-      var plainText = '';
-      sc.forEach(function(c){
-        var line = esc(c.campaign);
-        if (c.what) line += ': ' + esc(c.what);
-        if (c.rank) line += '. Rank ' + esc(c.rank);
-        if (c.why)  line += '. ' + esc(c.why);
-        plainText += '<div style="margin-bottom:5px;">'+line+'</div>';
-      });
-      var editBtn2 = admin ? '<button onclick="editHistRaw(&quot;'+escA(wkKey_)+'&quot;)" style="font-size:10px;padding:1px 7px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;color:#5a4230;cursor:pointer;margin-right:4px;">Edit</button>' : '';
-      var delBtn2  = admin ? '<button onclick="deleteHistEntry(&quot;'+escA(wkKey_)+'&quot;)" style="font-size:10px;padding:1px 7px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;color:#b05030;cursor:pointer;" title="Hide from Log tab (preserved in Raw tab)">Hide</button>' : '';
-      blockHtml += '<div style="font-size:13px;color:#3d2e1e;line-height:1.7;padding:2px 0;"><div style="float:right;display:flex;gap:4px;margin-left:8px;">' + editBtn2 + delBtn2 + '</div>' + plainText + '</div>';
-    }
+      var rawContent = e.rawHtml || (e.raw ? '<pre style="white-space:pre-wrap;font-family:inherit;margin:0;">'+esc(e.raw)+'</pre>' : '');
 
-    if (!blockHtml) return;
-    pastHtml += '<div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #f0e8df;">';
-    pastHtml += '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#9c836a;margin-bottom:5px;">'+esc(dateStr)+'</div>';
-    pastHtml += blockHtml + '</div>';
+      if (rawContent) {
+        var editBtn  = admin ? '<button onclick="editHistEntryByIdx(&quot;'+escA(wkKey_)+'&quot;,'+eIdx+')" style="font-size:10px;padding:1px 7px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;color:#5a4230;cursor:pointer;margin-right:4px;">Edit</button>' : '';
+        var delBtn   = admin ? '<button onclick="deleteHistEntryByIdx(&quot;'+escA(wkKey_)+'&quot;,'+eIdx+')" style="font-size:10px;padding:1px 7px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;color:#b05030;cursor:pointer;">Hide</button>' : '';
+        blockHtml += '<div style="font-size:13px;color:#3d2e1e;line-height:1.7;padding:2px 0;"><div style="float:right;display:flex;gap:4px;margin-left:8px;">' + editBtn + delBtn + '</div>' + rawContent + '</div>';
+      } else if (e.campaigns && e.campaigns.length) {
+        var sc = e.campaigns.slice().sort(function(a,b){
+          var na=parseInt((a.campaign.match(/\(\d+\)/)||['(999)'])[0].replace(/\D/g,''));
+          var nb=parseInt((b.campaign.match(/\(\d+\)/)||['(999)'])[0].replace(/\D/g,''));
+          return na-nb;
+        });
+        var plainText = '';
+        sc.forEach(function(c){
+          var line = esc(c.campaign);
+          if (c.what) line += ': ' + esc(c.what);
+          if (c.why)  line += '. ' + esc(c.why);
+          plainText += '<div style="margin-bottom:5px;">'+line+'</div>';
+        });
+        var editBtn2 = admin ? '<button onclick="editHistEntryByIdx(&quot;'+escA(wkKey_)+'&quot;,'+eIdx+')" style="font-size:10px;padding:1px 7px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;color:#5a4230;cursor:pointer;margin-right:4px;">Edit</button>' : '';
+        var delBtn2  = admin ? '<button onclick="deleteHistEntryByIdx(&quot;'+escA(wkKey_)+'&quot;,'+eIdx+')" style="font-size:10px;padding:1px 7px;border:1px solid #ddd2c4;border-radius:3px;background:#fffdf9;color:#b05030;cursor:pointer;">Hide</button>' : '';
+        blockHtml += '<div style="font-size:13px;color:#3d2e1e;line-height:1.7;padding:2px 0;"><div style="float:right;display:flex;gap:4px;margin-left:8px;">' + editBtn2 + delBtn2 + '</div>' + plainText + '</div>';
+      }
+
+      if (!blockHtml) return;
+      pastHtml += '<div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #f0e8df;">';
+      pastHtml += '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#9c836a;margin-bottom:5px;">'+esc(dateStr)+savedByStr+'</div>';
+      pastHtml += blockHtml + '</div>';
+    });
   });
 
   if (!pastHtml) pastHtml = '<div style="font-size:12px;color:#b0a090;font-style:italic;">No previous logs yet.</div>';
@@ -1985,16 +2056,20 @@ async function exportCSV() {
     });
   } else {
     Object.keys(wkData).forEach(function(name) {
-      var entry = wkData[name];
-      var p     = getPortfolios().find(function(x) { return x.name === name; });
-      var asin  = p ? p.asin : '';
-      if (entry.campaigns && entry.campaigns.length) {
-        entry.campaigns.forEach(function(c) {
-          csvRows.push([wk, name, asin, c.campaign, c.what, c.why, c.verdict, c.watch.join(' | '), entry.raw||'', entry.savedAt||'']);
-        });
-      } else {
-        csvRows.push([wk, name, asin, '', '', '', '', '', entry.raw||'', entry.savedAt||'']);
-      }
+      var raw_ = wkData[name];
+      var entries = Array.isArray(raw_) ? raw_ : (raw_ ? [raw_] : []);
+      var p    = getPortfolios().find(function(x) { return x.name === name; });
+      var asin = p ? p.asin : '';
+      entries.forEach(function(entry) {
+        if (entry.logDeleted) return;
+        if (entry.campaigns && entry.campaigns.length) {
+          entry.campaigns.forEach(function(c) {
+            csvRows.push([wk, name, asin, c.campaign, c.what, c.why, c.verdict, c.watch.join(' | '), entry.raw||'', entry.savedAt||'', entry.savedBy||'']);
+          });
+        } else {
+          csvRows.push([wk, name, asin, '', '', '', '', '', entry.raw||'', entry.savedAt||'', entry.savedBy||'']);
+        }
+      });
     });
   }
   var csv  = csvRows.map(function(r) { return r.map(function(c) { return '"' + String(c||'').replace(/"/g, '""') + '"'; }).join(','); }).join('\n');
@@ -2149,13 +2224,21 @@ async function handleHistoryUpload(input) {
     var wkDate = entry.savedAt ? new Date(entry.savedAt) : null;
     var wkKey  = wkDate && !isNaN(wkDate) ? wkDate.toISOString().slice(0,10) : entry.wk.slice(0,10);
     if (!all[wkKey]) all[wkKey] = {};
-    all[wkKey][entry.port] = {
+    var newEntry = {
       raw:       entry.raw,
       snapshot:  '',
       campaigns: entry.campaigns,
       savedAt:   entry.savedAt || new Date().toISOString(),
       savedBy:   'D'
     };
+    var existing = all[wkKey][entry.port];
+    if (!existing) {
+      all[wkKey][entry.port] = [newEntry];
+    } else if (Array.isArray(existing)) {
+      existing.push(newEntry);
+    } else {
+      all[wkKey][entry.port] = [existing, newEntry];
+    }
     imported++;
   });
   saveAll(all);
@@ -2514,11 +2597,15 @@ function popupLoadLog() {
   var html = '';
 
   wkKeys.forEach(function(wkKey) {
-    var e = (all[wkKey] || {})[name];
-    if (!e) return;
-    var dateStr = e.savedAt
-      ? new Date(e.savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'})
-      : wkKey;
+    var raw_ = (all[wkKey] || {})[name];
+    if (!raw_) return;
+    // Normalise to array
+    var entries_ = Array.isArray(raw_) ? raw_ : [raw_];
+    entries_.forEach(function(e) {
+      if (e.logDeleted) return;
+      var dateStr = e.savedAt
+        ? new Date(e.savedAt).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'})
+        : wkKey;
 
     html += '<div style="margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #f0e8df;">';
     html += '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#9c836a;margin-bottom:5px;">'+esc(dateStr)+'</div>';
@@ -2547,7 +2634,8 @@ function popupLoadLog() {
       html += '<div style="font-size:11px;color:#3d2e1e;line-height:1.6;white-space:pre-wrap;">'+esc(e.raw)+'</div>';
     }
     html += '</div>';
-  });
+    }); // entries_.forEach
+  }); // wkKeys.forEach
 
   if (!html) html = '<div style="font-size:12px;color:#b0a090;font-style:italic;padding:8px;">No logs yet for '+esc(name)+'.</div>';
 
