@@ -1628,7 +1628,7 @@ async function analyseAndSave() {
 
     var wk = weekLabel(weekOffset).replace(/\(.*\)/, '').trim();
     await supabaseInsert({week: wk, portfolio: selectedName, asin: p ? p.asin : '',
-      campaign: '', what_changed: processed, why: '', rank: '', verdict: '', watch_next: '', raw_notes: raw});
+      campaign: '', what_changed: processed, why: '', verdict: '', watch_next: '', raw_notes: raw});
 
     var ed2 = document.getElementById('rich_editor');
     if (ed2) ed2.innerHTML = '';
@@ -2173,7 +2173,6 @@ async function handleHistoryUpload(input) {
         campaign:    c.campaign,
         what_changed:c.what,
         why:         c.why,
-        rank:        c.rank,
         verdict:     '',
         watch_next:  c.watch.join(' | '),
         raw_notes:   entry.raw
