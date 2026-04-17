@@ -2436,6 +2436,36 @@ function togglePopupLayout() {
   }, 50);
 }
 
+function initLogDivider() {
+  var divider = document.getElementById('log_divider');
+  if (!divider) return;
+  var top  = document.getElementById('log_top');
+  var bot  = document.getElementById('log_bottom');
+  var wrap = document.getElementById('log_wrap');
+  if (!top || !bot || !wrap) return;
+
+  var dragging = false, startY = 0, startTopH = 0;
+
+  divider.addEventListener('mousedown', function(e) {
+    dragging  = true;
+    startY    = e.clientY;
+    startTopH = top.getBoundingClientRect().height;
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var delta   = e.clientY - startY;
+    var wrapH   = wrap.getBoundingClientRect().height;
+    var newTopH = Math.max(80, Math.min(wrapH - 120, startTopH + delta));
+    top.style.flex = 'none';
+    top.style.height = newTopH + 'px';
+  });
+  document.addEventListener('mouseup', function() {
+    if (dragging) { dragging = false; document.body.style.userSelect = ''; }
+  });
+}
+
 function initPopupDivider() {
   var divider = document.getElementById('popup_divider');
   if (!divider) return;
