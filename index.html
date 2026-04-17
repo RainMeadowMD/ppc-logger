@@ -288,12 +288,19 @@ function getUsers() {
   try {
     var stored = JSON.parse(localStorage.getItem('ppc_users') || 'null');
     if (stored && stored.length) {
+      // Auto-fix: rename any stored "Kate" -> "Kathe" to match compiled list
+      stored = stored.map(function(u) {
+        if (u.name === 'Kate') return Object.assign({}, u, { name: 'Kathe' });
+        return u;
+      });
       // Merge: ensure every _COMPILED_USERS entry exists in stored list
       var names = {};
       for (var i = 0; i < stored.length; i++) names[stored[i].name] = true;
       for (var j = 0; j < _COMPILED_USERS.length; j++) {
         if (!names[_COMPILED_USERS[j].name]) stored.push(_COMPILED_USERS[j]);
       }
+      // Persist the corrected list back to localStorage
+      localStorage.setItem('ppc_users', JSON.stringify(stored));
       return stored;
     }
   } catch(e) {}
@@ -402,21 +409,28 @@ async function kvGetFresh(key) {
 async function kvSet(key, value) {
   _kvCache[key] = value;
   try {
-    // Try PATCH first (update existing row) — avoids duplicate-row accumulation
-    // that breaks getFreshAllLogs when merge-duplicates unique constraint is missing
+    // Use PATCH (update) first — avoids inserting duplicate rows which breaks getFreshAllLogs.
+    // Falls back to POST (insert) only when the row doesn't exist yet.
     var patchRes = await fetch(
       SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(key),
       {
         method: 'PATCH',
-        headers: Object.assign({}, _supaHeaders, { 'Prefer': 'return=minimal' }),
+        headers: Object.assign({}, _supaHeaders, { 'Prefer': 'return=representation,count=exact' }),
         body: JSON.stringify({ value: value })
       }
     );
-    // If PATCH matched 0 rows (204 but no rows updated, or 404), INSERT instead
-    var count = patchRes.headers.get('Content-Range') || '';
-    var didUpdate = patchRes.ok && count !== '*/0' && count !== '';
-    if (!didUpdate && patchRes.ok) {
-      // PATCH succeeded but may have updated 0 rows — do INSERT
+    if (patchRes.ok) {
+      var patched = await patchRes.json();
+      if (!patched || patched.length === 0) {
+        // Row didn't exist — INSERT it
+        await fetch(SUPA_URL + '/rest/v1/ppc_kv', {
+          method: 'POST',
+          headers: Object.assign({}, _supaHeaders, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+          body: JSON.stringify({ key: key, value: value })
+        });
+      }
+    } else {
+      // PATCH failed (e.g. RLS) — fall back to upsert
       await fetch(SUPA_URL + '/rest/v1/ppc_kv', {
         method: 'POST',
         headers: Object.assign({}, _supaHeaders, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
@@ -770,8 +784,12 @@ function loadAll() {
 }
 async function saveAll(d) {
   var v = JSON.stringify(d);
+  var weekCount = Object.keys(d).length;
+  var totalEntries = Object.keys(d).reduce(function(sum, wk) { return sum + Object.keys(d[wk]).length; }, 0);
+  console.log('[saveAll] Writing', weekCount, 'week(s),', totalEntries, 'total entries. Weeks:', Object.keys(d));
   _kvCache[SK_LOG] = v;
   await kvSet(SK_LOG, v); // Supabase is source of truth — no localStorage write
+  console.log('[saveAll] kvSet complete for SK_LOG');
 }
 function getEntry(name) { return (loadAll()[weekKey(weekOffset)] || {})[name] || null; }
 function setEntry(name, d) {
@@ -782,29 +800,36 @@ function setEntry(name, d) {
 }
 // Always fetches latest log from Supabase before merging — prevents overwriting concurrent saves
 async function getFreshAllLogs() {
-  // Start with cache as fallback, but prefer Supabase every time for log writes
   var all = loadAll();
   var cacheWeekCount = Object.keys(all).length;
   try {
-    var res = await fetch(SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(SK_LOG) + '&order=created_at.desc&limit=1',
-      { headers: _supaHeaders });
+    // &order=created_at.desc&limit=1 ensures we always read the LATEST row,
+    // guarding against duplicate rows if the upsert unique constraint is missing.
+    var res = await fetch(
+      SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(SK_LOG) + '&order=created_at.desc&limit=1',
+      { headers: _supaHeaders }
+    );
     if (res.ok) {
       var rows = await res.json();
+      console.log('[getFreshAllLogs] Supabase returned', rows.length, 'row(s) for SK_LOG');
       if (rows.length && rows[0].value) {
         var fresh = {};
-        try { fresh = JSON.parse(rows[0].value); } catch(e) {}
+        try { fresh = JSON.parse(rows[0].value); } catch(e) {
+          console.warn('[getFreshAllLogs] JSON.parse failed on Supabase value:', e.message);
+        }
         var freshWeekCount = Object.keys(fresh).length;
+        console.log('[getFreshAllLogs] cache had', cacheWeekCount, 'weeks, Supabase has', freshWeekCount, 'weeks. Keys:', Object.keys(fresh));
         all = fresh;
         _kvCache[SK_LOG] = rows[0].value;
-        console.log('[getFreshAllLogs] cache had', cacheWeekCount, 'weeks, Supabase has', freshWeekCount, 'weeks');
       } else {
-        console.log('[getFreshAllLogs] Supabase returned no rows for SK_LOG — using cache with', cacheWeekCount, 'weeks');
+        console.warn('[getFreshAllLogs] Supabase has NO rows for SK_LOG — will save over empty base! cacheWeeks=', cacheWeekCount);
       }
     } else {
-      console.warn('[getFreshAllLogs] Supabase fetch failed, status', res.status, '— using cache');
+      var errText = await res.text().catch(function(){return '';});
+      console.warn('[getFreshAllLogs] Supabase fetch failed, status', res.status, errText, '— using cache with', cacheWeekCount, 'weeks');
     }
   } catch(e) {
-    console.warn('[getFreshAllLogs] Network error:', e.message, '— using cache');
+    console.warn('[getFreshAllLogs] Network error:', e.message, '— using cache with', cacheWeekCount, 'weeks');
   }
   return all;
 }
