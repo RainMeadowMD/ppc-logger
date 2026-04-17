@@ -409,33 +409,34 @@ async function kvGetFresh(key) {
 async function kvSet(key, value) {
   _kvCache[key] = value;
   try {
-    // Use PATCH (update) first — avoids inserting duplicate rows which breaks getFreshAllLogs.
-    // Falls back to POST (insert) only when the row doesn't exist yet.
+    // Step 1: try PATCH (update existing row).
+    // Prefer: return=minimal gives 204 No Content on success — we check status code, not body.
     var patchRes = await fetch(
       SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(key),
       {
         method: 'PATCH',
-        headers: Object.assign({}, _supaHeaders, { 'Prefer': 'return=representation,count=exact' }),
+        headers: Object.assign({}, _supaHeaders, { 'Prefer': 'return=minimal', 'Content-Range': '' }),
         body: JSON.stringify({ value: value })
       }
     );
-    if (patchRes.ok) {
-      var patched = await patchRes.json();
-      if (!patched || patched.length === 0) {
-        // Row didn't exist — INSERT it
-        await fetch(SUPA_URL + '/rest/v1/ppc_kv', {
-          method: 'POST',
-          headers: Object.assign({}, _supaHeaders, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
-          body: JSON.stringify({ key: key, value: value })
-        });
-      }
-    } else {
-      // PATCH failed (e.g. RLS) — fall back to upsert
-      await fetch(SUPA_URL + '/rest/v1/ppc_kv', {
+    // PostgREST returns Content-Range: */0 when PATCH matched 0 rows
+    var contentRange = patchRes.headers.get('Content-Range') || '';
+    var matchedZeroRows = (contentRange === '*/0');
+    if (!patchRes.ok || matchedZeroRows) {
+      // Row doesn't exist yet — INSERT it
+      var insertRes = await fetch(SUPA_URL + '/rest/v1/ppc_kv', {
         method: 'POST',
         headers: Object.assign({}, _supaHeaders, { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
         body: JSON.stringify({ key: key, value: value })
       });
+      if (!insertRes.ok) {
+        var errText = await insertRes.text().catch(function(){return '';});
+        console.warn('[kvSet] INSERT failed for key=' + key + ' status=' + insertRes.status + ' ' + errText);
+      } else {
+        console.log('[kvSet] INSERT ok for key=' + key);
+      }
+    } else {
+      console.log('[kvSet] PATCH ok for key=' + key + ' Content-Range=' + contentRange);
     }
   } catch(e) { console.warn('kvSet failed', key, e); }
 }
@@ -445,10 +446,22 @@ async function kvLoadAll() {
   try {
     var res = await fetch(SUPA_URL + '/rest/v1/ppc_kv?select=key,value',
       { headers: _supaHeaders });
-    if (!res.ok) return;
+    if (!res.ok) {
+      console.warn('[kvLoadAll] fetch failed status=' + res.status);
+      return;
+    }
     var rows = await res.json();
     rows.forEach(function(r) { _kvCache[r.key] = r.value; });
     _kvReady = true;
+    var logVal = _kvCache['ppc_log_v5'];
+    if (logVal) {
+      try {
+        var parsed = JSON.parse(logVal);
+        console.log('[kvLoadAll] SK_LOG loaded, weeks:', Object.keys(parsed));
+      } catch(e) { console.warn('[kvLoadAll] SK_LOG parse failed', e); }
+    } else {
+      console.warn('[kvLoadAll] SK_LOG not found in Supabase KV — ppc_kv table may be empty');
+    }
   } catch(e) { console.warn('kvLoadAll failed', e); }
 }
 
@@ -803,10 +816,10 @@ async function getFreshAllLogs() {
   var all = loadAll();
   var cacheWeekCount = Object.keys(all).length;
   try {
-    // &order=created_at.desc&limit=1 ensures we always read the LATEST row,
-    // guarding against duplicate rows if the upsert unique constraint is missing.
+    // &order=updated_at.desc&limit=1 ensures we always read the LATEST row.
+    // (ppc_kv uses updated_at, not created_at)
     var res = await fetch(
-      SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(SK_LOG) + '&order=created_at.desc&limit=1',
+      SUPA_URL + '/rest/v1/ppc_kv?key=eq.' + encodeURIComponent(SK_LOG) + '&order=updated_at.desc&limit=1',
       { headers: _supaHeaders }
     );
     if (res.ok) {
