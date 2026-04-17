@@ -2873,50 +2873,66 @@ function init() {
       }
     }
 
-    // ONE-TIME MERGE: if localStorage has MORE weeks than Supabase, merge them in.
-    // This recovers historical log data that was saved locally before Supabase sync was working.
+    // ONE-TIME MERGE: scan ALL ppc_log_* keys in localStorage and merge into Supabase.
+    // This recovers data from older app versions that used different key names.
     (function mergeLocalStorageLogs() {
-      var localRaw = localStorage.getItem(SK_LOG);
-      if (!localRaw) return; // nothing local to merge
-      var localData = {};
-      try { localData = JSON.parse(localRaw); } catch(e) { return; }
-      var localWeeks = Object.keys(localData);
-      if (!localWeeks.length) return;
+      // First, dump ALL localStorage keys so we can diagnose what's there
+      var allKeys = [];
+      for (var i = 0; i < localStorage.length; i++) { allKeys.push(localStorage.key(i)); }
+      var logKeys = allKeys.filter(function(k) { return k && k.indexOf('ppc_log') === 0; });
+      console.log('[mergeLocalStorageLogs] All localStorage keys:', allKeys);
+      console.log('[mergeLocalStorageLogs] ppc_log* keys found:', logKeys);
 
-      var supaData = _kvCache[SK_LOG] ? {} : null;
-      if (_kvCache[SK_LOG]) {
-        try { supaData = JSON.parse(_kvCache[SK_LOG]); } catch(e) { supaData = {}; }
-      } else {
-        supaData = {};
-      }
-      var supaWeeks = Object.keys(supaData);
+      // Build merged data from ALL ppc_log* keys
+      var combined = {};
+      logKeys.forEach(function(key) {
+        try {
+          var data = JSON.parse(localStorage.getItem(key) || '{}');
+          Object.keys(data).forEach(function(wk) {
+            if (!combined[wk]) combined[wk] = {};
+            Object.keys(data[wk]).forEach(function(port) {
+              if (!combined[wk][port]) combined[wk][port] = data[wk][port];
+            });
+          });
+          console.log('[mergeLocalStorageLogs] Key "' + key + '" has weeks:', Object.keys(data));
+        } catch(e) {
+          console.warn('[mergeLocalStorageLogs] Failed to parse key:', key, e);
+        }
+      });
 
-      // Find weeks in localStorage not in Supabase
-      var missingWeeks = localWeeks.filter(function(wk) { return !supaData[wk]; });
-      if (!missingWeeks.length) {
-        console.log('[mergeLocalStorageLogs] No missing weeks — localStorage and Supabase are in sync');
+      var combinedWeeks = Object.keys(combined);
+      if (!combinedWeeks.length) {
+        console.log('[mergeLocalStorageLogs] No local log data found at all — nothing to merge');
         return;
       }
 
-      console.log('[mergeLocalStorageLogs] Merging ' + missingWeeks.length + ' missing weeks from localStorage into Supabase:', missingWeeks);
-      missingWeeks.forEach(function(wk) { supaData[wk] = localData[wk]; });
-      // Also merge any portfolios within existing weeks that Supabase is missing
-      supaWeeks.forEach(function(wk) {
-        if (!localData[wk]) return;
-        Object.keys(localData[wk]).forEach(function(port) {
-          if (!supaData[wk][port]) {
-            supaData[wk][port] = localData[wk][port];
-            console.log('[mergeLocalStorageLogs] Merged portfolio ' + port + ' from week ' + wk);
-          }
-        });
+      // Merge with what Supabase already has
+      var supaData = {};
+      if (_kvCache[SK_LOG]) {
+        try { supaData = JSON.parse(_kvCache[SK_LOG]); } catch(e) {}
+      }
+
+      var added = 0;
+      combinedWeeks.forEach(function(wk) {
+        if (!supaData[wk]) { supaData[wk] = combined[wk]; added++; }
+        else {
+          Object.keys(combined[wk]).forEach(function(port) {
+            if (!supaData[wk][port]) { supaData[wk][port] = combined[wk][port]; added++; }
+          });
+        }
       });
 
-      var merged = JSON.stringify(supaData);
       var totalWeeks = Object.keys(supaData).length;
-      console.log('[mergeLocalStorageLogs] Saving merged data: ' + totalWeeks + ' total weeks to Supabase');
+      if (added === 0) {
+        console.log('[mergeLocalStorageLogs] Supabase already has all local data (' + totalWeeks + ' weeks). Nothing to merge.');
+        return;
+      }
+
+      console.log('[mergeLocalStorageLogs] Merging ' + added + ' new entries. Total weeks after merge: ' + totalWeeks);
+      var merged = JSON.stringify(supaData);
       _kvCache[SK_LOG] = merged;
       kvSet(SK_LOG, merged).then(function() {
-        console.log('[mergeLocalStorageLogs] Merge complete — ' + totalWeeks + ' weeks now in Supabase');
+        console.log('[mergeLocalStorageLogs] Done — ' + totalWeeks + ' weeks now in Supabase');
         renderList();
       });
     })();
